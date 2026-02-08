@@ -74,6 +74,7 @@ class BaseIngester(ABC):
                     "is_all_day": stmt.excluded.is_all_day,
                     "category_id": stmt.excluded.category_id,
                     "impact_level": stmt.excluded.impact_level,
+                    "popularity_score": stmt.excluded.popularity_score,
                     "country_code": stmt.excluded.country_code,
                     "region": stmt.excluded.region,
                     "timezone": stmt.excluded.timezone,

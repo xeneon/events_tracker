@@ -27,6 +27,7 @@ export interface EventData {
   category_id: number | null;
   category: { id: number; name: string; slug: string; color: string; icon: string | null } | null;
   impact_level: number | null;
+  popularity_score: number | null;
   country_code: string | null;
   region: string | null;
   is_recurring: boolean;
@@ -52,6 +53,7 @@ export interface CalendarEvent {
   category_id: number | null;
   category_name: string | null;
   impact_level: number | null;
+  popularity_score: number | null;
   country_code: string | null;
   rrule: string | null;
 }

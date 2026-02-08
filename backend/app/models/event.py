@@ -44,6 +44,7 @@ class Event(Base):
         Integer, ForeignKey("categories.id", ondelete="SET NULL")
     )
     impact_level: Mapped[int | None] = mapped_column(SmallInteger)  # 1-5
+    popularity_score: Mapped[int | None] = mapped_column(Integer)  # Raw metric (e.g. list_count)
 
     # Location
     country_code: Mapped[str | None] = mapped_column(String(2))

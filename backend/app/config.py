@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     SUPERUSER_PASSWORD: str = "changeme123"
 
     CALENDARIFIC_API_KEY: str = ""
+    TRAKT_CLIENT_ID: str = ""
 
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000,http://192.168.1.102:3000,http://192.168.1.102"

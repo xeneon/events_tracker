@@ -11,11 +11,13 @@ from app.database import async_session_maker
 from app.models.data_source import DataSource
 from app.services.ingestion.base import BaseIngester
 from app.services.ingestion.calendarific import CalendarificIngester
+from app.services.ingestion.trakt import TraktIngester
 
 logger = logging.getLogger(__name__)
 
 INGESTERS: dict[str, type[BaseIngester]] = {
     "Calendarific": CalendarificIngester,
+    "Trakt": TraktIngester,
 }
 
 scheduler = AsyncIOScheduler()
@@ -49,6 +51,11 @@ def setup_scheduler():
     scheduler.add_job(
         _run_source_by_name, CronTrigger(hour=2, minute=0),
         args=["Calendarific"], id="calendarific", replace_existing=True,
+    )
+    # Trakt anticipated movies/shows: daily at 3am UTC
+    scheduler.add_job(
+        _run_source_by_name, CronTrigger(hour=3, minute=0),
+        args=["Trakt"], id="trakt", replace_existing=True,
     )
 
     scheduler.start()

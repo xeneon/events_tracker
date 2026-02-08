@@ -140,6 +140,7 @@ def _event_to_calendar_item(ev: Event) -> dict:
         "category_id": ev.category_id,
         "category_name": ev.category.name if ev.category else None,
         "impact_level": ev.impact_level,
+        "popularity_score": ev.popularity_score,
         "country_code": ev.country_code,
         "rrule": None,
     }
@@ -187,6 +188,7 @@ def _expand_recurring(ev: Event, range_start: date, range_end: date) -> list[dic
             "category_id": ev.category_id,
             "category_name": ev.category.name if ev.category else None,
             "impact_level": ev.impact_level,
+            "popularity_score": ev.popularity_score,
             "country_code": ev.country_code,
             "rrule": None,
         })

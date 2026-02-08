@@ -15,6 +15,7 @@ class EventBase(BaseModel):
     is_all_day: bool = True
     category_id: int | None = None
     impact_level: int | None = Field(None, ge=1, le=5)
+    popularity_score: int | None = None
     country_code: str | None = Field(None, max_length=2)
     region: str | None = None
     is_recurring: bool = False
@@ -39,6 +40,7 @@ class EventUpdate(BaseModel):
     is_all_day: bool | None = None
     category_id: int | None = None
     impact_level: int | None = Field(None, ge=1, le=5)
+    popularity_score: int | None = None
     country_code: str | None = Field(None, max_length=2)
     region: str | None = None
     is_recurring: bool | None = None
@@ -79,6 +81,7 @@ class EventRead(BaseModel):
     category_id: int | None = None
     category: CategoryRead | None = None
     impact_level: int | None = None
+    popularity_score: int | None = None
     country_code: str | None = None
     region: str | None = None
     is_recurring: bool
@@ -106,6 +109,7 @@ class EventCalendarItem(BaseModel):
     category_id: int | None = None
     category_name: str | None = None
     impact_level: int | None = None
+    popularity_score: int | None = None
     country_code: str | None = None
     rrule: str | None = None
 

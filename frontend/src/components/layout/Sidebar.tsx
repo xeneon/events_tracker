@@ -3,8 +3,12 @@ import { useFilterStore } from "@/store/filterStore";
 
 export default function Sidebar() {
   const categories = useCategories();
-  const { activeCategories, toggleCategory, searchQuery, setSearchQuery } =
-    useFilterStore();
+  const {
+    activeCategories,
+    toggleCategory,
+    searchQuery,
+    setSearchQuery,
+  } = useFilterStore();
 
   return (
     <aside className="w-64 bg-white border-r border-gray-200 p-4 flex flex-col gap-4 overflow-y-auto">

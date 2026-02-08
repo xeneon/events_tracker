@@ -17,7 +17,9 @@ CATEGORIES = [
     {"name": "State Holiday", "slug": "state-holiday", "color": "#f97316", "icon": "map-pin", "sort_order": 2},
     {"name": "Observance", "slug": "observance", "color": "#3b82f6", "icon": "eye", "sort_order": 3},
     {"name": "Religious", "slug": "religious", "color": "#8b5cf6", "icon": "heart", "sort_order": 4},
-    {"name": "Other", "slug": "other", "color": "#6b7280", "icon": "circle", "sort_order": 5},
+    {"name": "Movies", "slug": "movies", "color": "#ef4444", "icon": "film", "sort_order": 6},
+    {"name": "TV Shows", "slug": "tv-shows", "color": "#22c55e", "icon": "tv", "sort_order": 7},
+    {"name": "Other", "slug": "other", "color": "#6b7280", "icon": "circle", "sort_order": 99},
 ]
 
 DATA_SOURCES = [
@@ -26,6 +28,14 @@ DATA_SOURCES = [
         "source_type": "api",
         "base_url": "https://calendarific.com/api/v2",
         "api_key_env_var": "CALENDARIFIC_API_KEY",
+        "is_active": True,
+        "sync_interval": 1440,
+    },
+    {
+        "name": "Trakt",
+        "source_type": "api",
+        "base_url": "https://api.trakt.tv",
+        "api_key_env_var": "TRAKT_CLIENT_ID",
         "is_active": True,
         "sync_interval": 1440,
     },

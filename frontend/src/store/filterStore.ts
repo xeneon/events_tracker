@@ -20,17 +20,27 @@ export const useFilterStore = create<FilterState>((set) => ({
 
   toggleCategory: (id, allCategoryIds) =>
     set((state) => {
-      // When showing all (empty array), uncheck means select all except this one
+      // If none selected (implies all are selected), and we toggle one...
+      // The Sidebar likely renders them all as checked.
+      // So toggling `id` means we want to UNCHECK `id`, so we select ALL others.
       if (state.activeCategories.length === 0) {
         return { activeCategories: allCategoryIds.filter((c) => c !== id) };
       }
-      const newCategories = state.activeCategories.includes(id)
-        ? state.activeCategories.filter((c) => c !== id)
-        : [...state.activeCategories, id];
-      // If all categories are now selected, reset to empty (show all)
+
+      const isSelected = state.activeCategories.includes(id);
+      let newCategories: number[];
+
+      if (isSelected) {
+        newCategories = state.activeCategories.filter((c) => c !== id);
+      } else {
+        newCategories = [...state.activeCategories, id];
+      }
+
+      // If all are selected manually, reset to empty (semantic "All")
       if (newCategories.length === allCategoryIds.length) {
         return { activeCategories: [] };
       }
+
       return { activeCategories: newCategories };
     }),
 
