@@ -3,6 +3,7 @@ import axios from "axios";
 const apiClient = axios.create({
   baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
+  paramsSerializer: { indexes: null },
 });
 
 apiClient.interceptors.request.use((config) => {

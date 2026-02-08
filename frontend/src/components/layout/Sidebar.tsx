@@ -3,7 +3,7 @@ import { useFilterStore } from "@/store/filterStore";
 
 export default function Sidebar() {
   const categories = useCategories();
-  const { activeCategories, toggleCategory, searchQuery, setSearchQuery, countryCode, setCountryCode } =
+  const { activeCategories, toggleCategory, searchQuery, setSearchQuery } =
     useFilterStore();
 
   return (
@@ -48,14 +48,9 @@ export default function Sidebar() {
         <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
           Country
         </label>
-        <input
-          type="text"
-          placeholder="e.g. US, GB"
-          value={countryCode}
-          onChange={(e) => setCountryCode(e.target.value.toUpperCase().slice(0, 2))}
-          maxLength={2}
-          className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-        />
+        <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded text-sm text-gray-700">
+          United States
+        </div>
       </div>
     </aside>
   );

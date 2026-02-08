@@ -17,6 +17,7 @@ export default function EventForm({ onSuccess }: Props) {
     title: "",
     start_date: "",
     is_all_day: true,
+    country_code: "US",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,7 +28,7 @@ export default function EventForm({ onSuccess }: Props) {
     try {
       await createEvent(form);
       setSuccess(true);
-      setForm({ title: "", start_date: "", is_all_day: true });
+      setForm({ title: "", start_date: "", is_all_day: true, country_code: "US" });
       onSuccess?.();
     } catch {
       setError("Failed to create event");

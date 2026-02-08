@@ -10,20 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import async_session_maker
 from app.models.data_source import DataSource
 from app.services.ingestion.base import BaseIngester
-from app.services.ingestion.games import GameIngester
-from app.services.ingestion.holidays import HolidayIngester
-from app.services.ingestion.movies import MovieIngester
-from app.services.ingestion.political import PoliticalIngester
-from app.services.ingestion.sports import SportsIngester
+from app.services.ingestion.calendarific import CalendarificIngester
 
 logger = logging.getLogger(__name__)
 
 INGESTERS: dict[str, type[BaseIngester]] = {
-    "Nager.Date": HolidayIngester,
-    "TheSportsDB": SportsIngester,
-    "TMDB": MovieIngester,
-    "RAWG": GameIngester,
-    "GDELT": PoliticalIngester,
+    "Calendarific": CalendarificIngester,
 }
 
 scheduler = AsyncIOScheduler()
@@ -53,30 +45,10 @@ async def _run_source_by_name(source_name: str):
 
 def setup_scheduler():
     """Register all scheduled ingestion jobs."""
-    # Holidays: daily at 2am UTC
+    # Calendarific US holidays: daily at 2am UTC
     scheduler.add_job(
         _run_source_by_name, CronTrigger(hour=2, minute=0),
-        args=["Nager.Date"], id="holidays", replace_existing=True,
-    )
-    # Sports: every 6 hours
-    scheduler.add_job(
-        _run_source_by_name, CronTrigger(hour="*/6", minute=0),
-        args=["TheSportsDB"], id="sports", replace_existing=True,
-    )
-    # Movies: daily at 3am UTC
-    scheduler.add_job(
-        _run_source_by_name, CronTrigger(hour=3, minute=0),
-        args=["TMDB"], id="movies", replace_existing=True,
-    )
-    # Games: daily at 3:30am UTC
-    scheduler.add_job(
-        _run_source_by_name, CronTrigger(hour=3, minute=30),
-        args=["RAWG"], id="games", replace_existing=True,
-    )
-    # Political: weekly Sunday at 4am UTC
-    scheduler.add_job(
-        _run_source_by_name, CronTrigger(day_of_week="sun", hour=4, minute=0),
-        args=["GDELT"], id="political", replace_existing=True,
+        args=["Calendarific"], id="calendarific", replace_existing=True,
     )
 
     scheduler.start()

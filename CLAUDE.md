@@ -26,6 +26,7 @@ uvicorn app.main:app --reload         # Dev server on :8000
 alembic upgrade head                  # Apply migrations
 alembic revision --autogenerate -m "description"  # New migration
 python -m app.seed                    # Seed categories, data sources, superuser
+python -m app.cleanup_old_data        # One-time: remove old sources/events/categories
 ```
 
 Package manager: `uv` (pip is not available). Example: `/home/dev/.local/bin/uv pip install -e ".[dev]"`
@@ -58,9 +59,9 @@ All database access is async via `asyncpg`. The app entrypoint is `backend/app/m
 
 **Event service** (`services/event_service.py`): Central business logic for events. Handles pagination, filtering (category, date range, country, impact, tags, text search via ILIKE), and recurring event expansion (RRULE via `dateutil.rrule`). The calendar endpoint returns a simplified projection; the list endpoint returns full event objects.
 
-**Data ingestion** (`services/ingestion/`): Five ingesters inherit from `BaseIngester`. Each implements `fetch_events()` → normalize → `upsert_events()` (PostgreSQL ON CONFLICT on `(data_source_id, external_id)`). `scheduler.py` registers APScheduler cron jobs that run in-process. Ingested events default to `is_approved=True`; user-submitted events default to `False`.
+**Data ingestion** (`services/ingestion/`): Single `CalendarificIngester` inherits from `BaseIngester`. Fetches US holidays from the Calendarific API (2 calls per sync: current year + next year, ~1030 events total). The API returns duplicate entries per holiday (federal + per-state); the ingester deduplicates by `urlid+date`, keeping the highest-priority variant (Federal > State Legal > State > Observance). Uses `primary_type` field for category mapping. `scheduler.py` registers one APScheduler cron job (daily 2 AM UTC). Ingested events default to `is_approved=True`; user-submitted events default to `False`. Admin can trigger manual sync via `POST /api/v1/admin/data-sources/{id}/sync`.
 
-**Database:** External PostgreSQL at `192.168.1.103:5432`, database `events_tracker`, user `events_user`. Not containerized. Single Alembic migration for the initial schema. The Event model has a unique constraint on `(data_source_id, external_id)` for deduplication.
+**Database:** External PostgreSQL at `192.168.1.103:5432`, database `events_tracker`, user `events_user`. Not containerized. Single Alembic migration for the initial schema. The Event model has a unique constraint on `(data_source_id, external_id)` for deduplication. The `region` column is `VARCHAR(200)` — ingester truncates long state lists to fit.
 
 ### Frontend (React 19 + Vite + TypeScript)
 
@@ -76,6 +77,10 @@ All database access is async via `asyncpg`. The app entrypoint is `backend/app/m
 
 ### Key Conventions
 
+- **US holidays focus.** The app tracks US holidays only via the Calendarific API (free tier: 1000 req/day). Frontend defaults `countryCode` to `"US"` and the sidebar shows a static "United States" label instead of a country picker.
+- **Categories:** Federal Holiday, State Holiday, Observance, Religious, Other. Seed script upserts (updates existing slugs on re-run).
+- **Data sources:** Calendarific (API) and Manual. `.env` key: `CALENDARIFIC_API_KEY`.
+- **Calendarific API quirks:** Returns multiple entries per holiday (one federal + per-state breakdowns). Ingester deduplicates in `fetch_events()` before normalizing. The `primary_type` field (not `type` array) is used for category mapping. Some holidays have `urlid: null` (e.g. Daylight Saving Time). Region field uses state abbreviations to stay within 200-char column limit.
 - Backend schemas in `schemas/` mirror but don't duplicate models. `EventCalendarItem.id` is `str` (not UUID) to support recurring instance IDs like `{uuid}_{date}`.
 - Ingester `_coerce_types()` converts string dates/times to Python objects before database insertion.
 - Rate limiting via `slowapi` middleware (30/min global).

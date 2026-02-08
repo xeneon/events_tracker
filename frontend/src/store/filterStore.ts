@@ -15,7 +15,7 @@ interface FilterState {
 export const useFilterStore = create<FilterState>((set) => ({
   activeCategories: [],
   searchQuery: "",
-  countryCode: "",
+  countryCode: "US",
   impactLevelMin: null,
 
   toggleCategory: (id, allCategoryIds) =>
@@ -42,7 +42,7 @@ export const useFilterStore = create<FilterState>((set) => ({
     set({
       activeCategories: [],
       searchQuery: "",
-      countryCode: "",
+      countryCode: "US",
       impactLevelMin: null,
     }),
 }));

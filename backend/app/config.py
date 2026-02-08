@@ -8,8 +8,7 @@ class Settings(BaseSettings):
     SUPERUSER_EMAIL: str = "admin@example.com"
     SUPERUSER_PASSWORD: str = "changeme123"
 
-    TMDB_API_KEY: str = ""
-    RAWG_API_KEY: str = ""
+    CALENDARIFIC_API_KEY: str = ""
 
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000,http://192.168.1.102:3000,http://192.168.1.102"
