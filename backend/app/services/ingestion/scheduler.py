@@ -47,9 +47,10 @@ async def _run_source_by_name(source_name: str):
 
 def setup_scheduler():
     """Register all scheduled ingestion jobs."""
-    # Calendarific US holidays: daily at 2am UTC
+    # Calendarific US holidays: weekly at Mondays 4am
     scheduler.add_job(
-        _run_source_by_name, CronTrigger(hour=2, minute=0),
+        _run_source_by_name, CronTrigger(day_of_week='mon', hour=4, minute=0)
+,
         args=["Calendarific"], id="calendarific", replace_existing=True,
     )
     # Trakt anticipated movies/shows: daily at 3am UTC
