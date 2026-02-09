@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.category import Category
 from app.models.data_source import DataSource
 from app.models.event import Event
 
@@ -18,6 +19,12 @@ class BaseIngester(ABC):
     def __init__(self, session: AsyncSession, source: DataSource):
         self.session = session
         self.source = source
+        self._slug_to_id: dict[str, int] = {}
+
+    async def _load_category_map(self):
+        result = await self.session.execute(select(Category))
+        for cat in result.scalars():
+            self._slug_to_id[cat.slug] = cat.id
 
     @abstractmethod
     async def fetch_events(self) -> list[dict]:

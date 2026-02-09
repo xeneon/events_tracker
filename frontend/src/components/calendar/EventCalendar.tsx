@@ -7,6 +7,7 @@ import interactionPlugin from "@fullcalendar/interaction";
 import type { EventClickArg, EventSourceFuncArg } from "@fullcalendar/core";
 import { fetchCalendarEvents } from "@/api/events";
 import { useFilterStore } from "@/store/filterStore";
+import { usePopularityThresholds } from "@/hooks/usePopularityThresholds";
 import EventDetailModal from "./EventDetailModal";
 import "@/styles/calendar.css";
 
@@ -14,51 +15,7 @@ export default function EventCalendar() {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const { activeCategories, countryCode, searchQuery } = useFilterStore();
   const calendarRef = useRef<FullCalendar>(null);
-  const [minScoreByYearAndCat, setMinScoreByYearAndCat] = useState<Record<string, number>>({});
-
-  // 1. Pre-fetch global context to determine "Top 15" thresholds per year AND category
-  useEffect(() => {
-    const fetchGlobalContext = async () => {
-      try {
-        // Fetch a wide range (e.g., 2025-2027) to capture anticipated releases
-        const allEvents = await fetchCalendarEvents(
-          "2025-01-01",
-          "2027-12-31",
-          undefined,
-          undefined,
-          undefined
-        );
-
-        const scoresByKey: Record<string, number[]> = {};
-
-        allEvents.forEach((ev) => {
-          if (ev.popularity_score != null && ev.category_id) {
-            const year = new Date(ev.start).getFullYear();
-            const key = `${year}-${ev.category_id}`;
-            if (!scoresByKey[key]) scoresByKey[key] = [];
-            scoresByKey[key].push(ev.popularity_score);
-          }
-        });
-
-        const thresholds: Record<string, number> = {};
-        Object.keys(scoresByKey).forEach((key) => {
-          const scores = scoresByKey[key].sort((a, b) => b - a);
-          // Top 15 cutoff per category: Take the 15th score (index 14).
-          if (scores.length >= 15) {
-            thresholds[key] = scores[14];
-          } else {
-            thresholds[key] = 0; // Show all if fewer than 15
-          }
-        });
-
-        setMinScoreByYearAndCat(thresholds);
-      } catch (e) {
-        console.error("Failed to fetch global context for ranking", e);
-      }
-    };
-
-    fetchGlobalContext();
-  }, []); // Run once on mount
+  const minScoreByYearAndCat = usePopularityThresholds();
 
   // Refetch events when filters change
   useEffect(() => {
@@ -108,7 +65,8 @@ export default function EventCalendar() {
             country_code: ev.country_code,
           },
         }));
-      } catch {
+      } catch (err) {
+        console.error("Failed to load calendar events", err);
         return [];
       }
     },

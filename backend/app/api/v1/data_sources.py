@@ -51,7 +51,7 @@ async def pending_events(
     stmt = (
         select(Event)
         .options(selectinload(Event.category), selectinload(Event.tags))
-        .where(Event.is_approved == False)  # noqa: E712
+        .where(Event.is_approved.is_(False))
         .order_by(Event.created_at.desc())
     )
     result = await session.execute(stmt)

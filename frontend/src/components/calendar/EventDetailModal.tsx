@@ -15,9 +15,9 @@ export default function EventDetailModal({ eventId, onClose }: Props) {
   useEffect(() => {
     if (!eventId) return;
     // Strip recurring instance suffix (e.g., "uuid_2026-01-01" -> "uuid")
-    const baseId = eventId.includes("_") && eventId.length > 36
-      ? eventId.substring(0, 36)
-      : eventId;
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    const match = eventId.match(UUID_RE);
+    const baseId = match ? match[0] : eventId;
     setLoading(true);
     fetchEvent(baseId)
       .then(setEvent)

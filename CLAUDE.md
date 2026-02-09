@@ -59,7 +59,12 @@ All database access is async via `asyncpg`. The app entrypoint is `backend/app/m
 
 **Event service** (`services/event_service.py`): Central business logic for events. Handles pagination, filtering (category, date range, country, impact, tags, text search via ILIKE), and recurring event expansion (RRULE via `dateutil.rrule`). The calendar endpoint returns a simplified projection; the list endpoint returns full event objects.
 
-**Data ingestion** (`services/ingestion/`): Single `CalendarificIngester` inherits from `BaseIngester`. Fetches US holidays from the Calendarific API (2 calls per sync: current year + next year, ~1030 events total). The API returns duplicate entries per holiday (federal + per-state); the ingester deduplicates by `urlid+date`, keeping the highest-priority variant (Federal > State Legal > State > Observance). Uses `primary_type` field for category mapping. `scheduler.py` registers one APScheduler cron job (daily 2 AM UTC). Ingested events default to `is_approved=True`; user-submitted events default to `False`. Admin can trigger manual sync via `POST /api/v1/admin/data-sources/{id}/sync`.
+**Data ingestion** (`services/ingestion/`): Four ingesters inherit from `BaseIngester`. Each implements `fetch_events()` → `normalize()`, and the base class handles upsert with dedup on `(data_source_id, external_id)`. Ingested events default to `is_approved=True`; user-submitted events default to `False`. Admin can trigger manual sync via `POST /api/v1/admin/data-sources/{id}/sync`.
+
+- **CalendarificIngester** — US holidays. 2 API calls per sync (current year + next year, ~1030 events). Deduplicates by `urlid+date`, keeping highest-priority variant (Federal > State Legal > State > Observance). Uses `primary_type` for category mapping. Schedule: weekly Monday 4am UTC.
+- **TraktIngester** — Anticipated movies and TV shows. Fetches top 100 anticipated from Trakt API. Impact level based on position ranking. Schedule: daily 3am UTC.
+- **FashionWeeksIngester** — Curated fashion week events. Static data with country codes and cities. Schedule: on-demand (sync_interval: monthly).
+- **WikipediaAlbumsIngester** — Music album releases. Scrapes `List_of_{year}_albums` via MediaWiki API, parses wikitables with BeautifulSoup (handles rowspan dates, skips TBA table). Enriches with Last.fm `artist.getinfo` for listener counts, images, and URLs (200ms rate limit between requests, cached per artist). Impact levels: 5M+ listeners→5, 1M+→4, 250k+→3, 50k+→2, <50k→1. Schedule: weekly Wednesday 5am UTC.
 
 **Database:** External PostgreSQL at `192.168.1.103:5432`, database `events_tracker`, user `events_user`. Not containerized. Single Alembic migration for the initial schema. The Event model has a unique constraint on `(data_source_id, external_id)` for deduplication. The `region` column is `VARCHAR(200)` — ingester truncates long state lists to fit.
 
@@ -77,10 +82,12 @@ All database access is async via `asyncpg`. The app entrypoint is `backend/app/m
 
 ### Key Conventions
 
-- **US holidays focus.** The app tracks US holidays only via the Calendarific API (free tier: 1000 req/day). Frontend defaults `countryCode` to `"US"` and the sidebar shows a static "United States" label instead of a country picker.
-- **Categories:** Federal Holiday, State Holiday, Observance, Religious, Other. Seed script upserts (updates existing slugs on re-run).
-- **Data sources:** Calendarific (API) and Manual. `.env` key: `CALENDARIFIC_API_KEY`.
+- **Country filter behavior.** Frontend defaults `countryCode` to `"US"`. The backend filter includes events matching the country code OR with `country_code IS NULL` (global events like albums, movies, TV shows always appear regardless of country filter).
+- **Popularity-based calendar filtering.** The frontend pre-fetches all events to compute per-category-per-year popularity thresholds. Music Releases use a fixed 1M listener floor. Other categories use a top-30 cutoff. Events without `popularity_score` (e.g. holidays) always display.
+- **Categories:** Federal Holiday, State Holiday, Observance, Religious, Movies, TV Shows, Fashion, Music Releases, Other. Seed script upserts (updates existing slugs on re-run).
+- **Data sources:** Calendarific (API), Trakt (API), Fashion Weeks (curated), Wikipedia Albums (scrape), Manual. `.env` keys: `CALENDARIFIC_API_KEY`, `TRAKT_CLIENT_ID`, `LASTFM_API_KEY`.
 - **Calendarific API quirks:** Returns multiple entries per holiday (one federal + per-state breakdowns). Ingester deduplicates in `fetch_events()` before normalizing. The `primary_type` field (not `type` array) is used for category mapping. Some holidays have `urlid: null` (e.g. Daylight Saving Time). Region field uses state abbreviations to stay within 200-char column limit.
+- **Wikipedia Albums quirks:** Tables use `rowspan` on date `<th>` cells for multiple albums on the same day. TBA table (caption contains "sometime") is skipped. Reference `<sup>` elements are decomposed before text extraction. `get_text(separator=" ")` used to avoid concatenation of adjacent inline elements.
 - Backend schemas in `schemas/` mirror but don't duplicate models. `EventCalendarItem.id` is `str` (not UUID) to support recurring instance IDs like `{uuid}_{date}`.
 - Ingester `_coerce_types()` converts string dates/times to Python objects before database insertion.
 - Rate limiting via `slowapi` middleware (30/min global).

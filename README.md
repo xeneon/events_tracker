@@ -1,11 +1,12 @@
 # Events Tracker
 
-A full-stack web application for aggregating and displaying events from multiple sources on a filterable calendar. Track holidays, sports events, movie releases, game launches, and political events all in one place.
+A full-stack web application for aggregating and displaying notable events from multiple sources on a filterable calendar. Track US holidays, movie and TV releases, fashion weeks, and major music album releases all in one place.
 
 ## Features
 
-- **Multi-Source Event Aggregation**: Automatically ingests events from 5 different data sources
+- **Multi-Source Event Aggregation**: Automatically ingests events from 4 data sources (Calendarific, Trakt, Wikipedia/Last.fm, curated fashion weeks)
 - **Interactive Calendar**: FullCalendar-based interface with day, week, month, and list views
+- **Popularity-Based Filtering**: Smart client-side filtering shows only the most notable events per category (top 30 for movies/TV, 1M+ listeners for music)
 - **Advanced Filtering**: Filter by category, date range, country, impact level, tags, and text search
 - **Recurring Events**: Support for repeating events using RRULE specification
 - **User Authentication**: JWT-based authentication with role-based access control
@@ -23,6 +24,7 @@ A full-stack web application for aggregating and displaying events from multiple
 - **fastapi-users** - Authentication and user management
 - **APScheduler** - Automated task scheduling
 - **Alembic** - Database migrations
+- **BeautifulSoup4** - HTML parsing (Wikipedia scraping)
 - **slowapi** - Rate limiting middleware
 
 ### Frontend
@@ -58,11 +60,13 @@ The application follows a service-oriented architecture with clear separation be
 - Recurring event expansion using dateutil.rrule
 - Simplified calendar projections vs. full event objects
 
-**Data Ingestion**: Five specialized ingesters inherit from `BaseIngester`:
-- Fetch events from external APIs
-- Normalize data to common schema
-- Upsert to database (PostgreSQL ON CONFLICT on `data_source_id, external_id`)
-- Run on APScheduler cron jobs
+**Data Ingestion**: Four specialized ingesters inherit from `BaseIngester`:
+- **Calendarific** — US holidays (federal, state, observance, religious) via API
+- **Trakt** — Anticipated movies and TV shows via API
+- **Fashion Weeks** — Curated fashion week schedule
+- **Wikipedia Albums** — Music album releases scraped from Wikipedia, enriched with Last.fm listener data
+- All ingesters: fetch → normalize → upsert (PostgreSQL ON CONFLICT on `data_source_id, external_id`)
+- Scheduled via APScheduler cron jobs; admin can trigger manual sync
 
 **Database**: External PostgreSQL instance (not containerized) with async access via asyncpg. Alembic manages schema migrations.
 
@@ -204,20 +208,14 @@ SUPERUSER_PASSWORD=changeme123
 
 ```env
 # API Keys (required for specific ingesters)
-TMDB_API_KEY=your_tmdb_api_key          # For movie ingestion
-RAWG_API_KEY=your_rawg_api_key          # For game ingestion
+CALENDARIFIC_API_KEY=your_key           # US holidays (https://calendarific.com)
+TRAKT_CLIENT_ID=your_client_id         # Movies & TV (https://trakt.tv/oauth/applications)
+LASTFM_API_KEY=your_key                # Music album enrichment (https://www.last.fm/api/account/create)
 
 # Application
 APP_ENV=development
 CORS_ORIGINS=http://localhost:3000,http://192.168.1.102:3000,http://192.168.1.102
 ```
-
-### API Key Setup
-
-- **TMDB**: Get your API key at https://www.themoviedb.org/settings/api
-- **RAWG**: Get your API key at https://rawg.io/apidocs
-
-Other data sources (Nager.Date, TheSportsDB, GDELT) do not require API keys.
 
 ## API Overview
 
@@ -263,23 +261,22 @@ Interactive API documentation is available at:
 
 ## Data Ingestion
 
-The application automatically fetches events from five data sources using scheduled jobs.
+The application automatically fetches events from four data sources using scheduled jobs.
 
 ### Data Sources
 
-| Source | Category | API | Schedule | Description |
-|--------|----------|-----|----------|-------------|
-| **Nager.Date** | Holidays | Public | Daily 2:00 AM UTC | Public holidays worldwide |
-| **TheSportsDB** | Sports | Public | Every 6 hours | Sports events and matches |
-| **TMDB** | Movies | Requires API key | Daily 3:00 AM UTC | Movie releases |
-| **RAWG** | Games | Requires API key | Daily 3:30 AM UTC | Video game releases |
-| **GDELT** | Political | Public | Weekly Sunday 4:00 AM UTC | Political events |
+| Source | Categories | Type | Schedule | Description |
+|--------|-----------|------|----------|-------------|
+| **Calendarific** | Federal/State Holiday, Observance, Religious | API | Weekly Mon 4am UTC | US holidays via Calendarific API |
+| **Trakt** | Movies, TV Shows | API | Daily 3am UTC | Top 100 anticipated movies & shows |
+| **Fashion Weeks** | Fashion | Curated | On-demand | Major fashion week events |
+| **Wikipedia Albums** | Music Releases | Scrape | Weekly Wed 5am UTC | Album releases from Wikipedia, enriched with Last.fm listener data |
 
 ### Ingestion Process
 
 1. **Scheduled Execution**: APScheduler runs cron jobs defined in `services/ingestion/scheduler.py`
-2. **Data Fetching**: Each ingester fetches events from its API
-3. **Normalization**: Data is normalized to the common Event schema
+2. **Data Fetching**: Each ingester fetches events from its source (API, scrape, or curated data)
+3. **Normalization**: Data is normalized to the common Event schema with impact levels and popularity scores
 4. **Deduplication**: Upsert based on `(data_source_id, external_id)` unique constraint
 5. **Auto-Approval**: Ingested events are automatically approved (`is_approved=True`)
 
@@ -288,14 +285,7 @@ The application automatically fetches events from five data sources using schedu
 Trigger ingestion manually via API (admin only):
 
 ```bash
-POST /api/v1/data-sources/{id}/ingest
-```
-
-Or run the seed script to force initial ingestion:
-
-```bash
-cd backend
-python -m app.seed
+POST /api/v1/admin/data-sources/{id}/sync
 ```
 
 ## Development

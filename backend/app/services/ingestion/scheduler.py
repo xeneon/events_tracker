@@ -11,13 +11,17 @@ from app.database import async_session_maker
 from app.models.data_source import DataSource
 from app.services.ingestion.base import BaseIngester
 from app.services.ingestion.calendarific import CalendarificIngester
+from app.services.ingestion.fashion_weeks import FashionWeeksIngester
 from app.services.ingestion.trakt import TraktIngester
+from app.services.ingestion.wikipedia_albums import WikipediaAlbumsIngester
 
 logger = logging.getLogger(__name__)
 
 INGESTERS: dict[str, type[BaseIngester]] = {
     "Calendarific": CalendarificIngester,
+    "Fashion Weeks": FashionWeeksIngester,
     "Trakt": TraktIngester,
+    "Wikipedia Albums": WikipediaAlbumsIngester,
 }
 
 scheduler = AsyncIOScheduler()
@@ -37,7 +41,7 @@ async def _run_source_by_name(source_name: str):
     """Job function for APScheduler — opens its own session."""
     async with async_session_maker() as session:
         result = await session.execute(
-            select(DataSource).where(DataSource.name == source_name, DataSource.is_active == True)  # noqa: E712
+            select(DataSource).where(DataSource.name == source_name, DataSource.is_active.is_(True))
         )
         source = result.scalar_one_or_none()
         if not source:
@@ -57,6 +61,11 @@ def setup_scheduler():
     scheduler.add_job(
         _run_source_by_name, CronTrigger(hour=3, minute=0),
         args=["Trakt"], id="trakt", replace_existing=True,
+    )
+    # Wikipedia Albums: weekly on Wednesday at 5am UTC
+    scheduler.add_job(
+        _run_source_by_name, CronTrigger(day_of_week='wed', hour=5, minute=0),
+        args=["Wikipedia Albums"], id="wikipedia_albums", replace_existing=True,
     )
 
     scheduler.start()

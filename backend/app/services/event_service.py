@@ -34,11 +34,13 @@ def _apply_filters(
     if end_date is not None:
         stmt = stmt.where(Event.start_date <= end_date)
     if country_code is not None:
-        stmt = stmt.where(Event.country_code == country_code)
+        stmt = stmt.where(
+            or_(Event.country_code == country_code, Event.country_code.is_(None))
+        )
     if impact_level_min is not None:
         stmt = stmt.where(Event.impact_level >= impact_level_min)
     if is_approved is not None:
-        stmt = stmt.where(Event.is_approved == is_approved)
+        stmt = stmt.where(Event.is_approved.is_(is_approved))
     if search:
         pattern = f"%{search}%"
         stmt = stmt.where(
@@ -80,11 +82,13 @@ async def get_calendar_events(
 ) -> list[dict]:
     stmt = select(Event).options(selectinload(Event.category))
     if is_approved is not None:
-        stmt = stmt.where(Event.is_approved == is_approved)
+        stmt = stmt.where(Event.is_approved.is_(is_approved))
     if category_ids:
         stmt = stmt.where(Event.category_id.in_(category_ids))
     if country_code:
-        stmt = stmt.where(Event.country_code == country_code)
+        stmt = stmt.where(
+            or_(Event.country_code == country_code, Event.country_code.is_(None))
+        )
     if search:
         pattern = f"%{search}%"
         stmt = stmt.where(
@@ -92,7 +96,7 @@ async def get_calendar_events(
         )
 
     # Get non-recurring events in range
-    non_recurring = stmt.where(Event.is_recurring == False).where(  # noqa: E712
+    non_recurring = stmt.where(Event.is_recurring.is_(False)).where(
         and_(
             or_(Event.end_date >= start_date, Event.start_date >= start_date),
             Event.start_date <= end_date,
@@ -102,7 +106,7 @@ async def get_calendar_events(
     events = list(result.scalars().unique().all())
 
     # Get recurring events (may start before the range)
-    recurring = stmt.where(Event.is_recurring == True)  # noqa: E712
+    recurring = stmt.where(Event.is_recurring.is_(True))
     result = await session.execute(recurring)
     recurring_events = list(result.scalars().unique().all())
 

@@ -19,6 +19,8 @@ CATEGORIES = [
     {"name": "Religious", "slug": "religious", "color": "#8b5cf6", "icon": "heart", "sort_order": 4},
     {"name": "Movies", "slug": "movies", "color": "#ef4444", "icon": "film", "sort_order": 6},
     {"name": "TV Shows", "slug": "tv-shows", "color": "#22c55e", "icon": "tv", "sort_order": 7},
+    {"name": "Fashion", "slug": "fashion", "color": "#ec4899", "icon": "scissors", "sort_order": 8},
+    {"name": "Music Releases", "slug": "music-releases", "color": "#a855f7", "icon": "music", "sort_order": 9},
     {"name": "Other", "slug": "other", "color": "#6b7280", "icon": "circle", "sort_order": 99},
 ]
 
@@ -38,6 +40,21 @@ DATA_SOURCES = [
         "api_key_env_var": "TRAKT_CLIENT_ID",
         "is_active": True,
         "sync_interval": 1440,
+    },
+    {
+        "name": "Fashion Weeks",
+        "source_type": "curated",
+        "base_url": None,
+        "is_active": True,
+        "sync_interval": 43200,  # monthly
+    },
+    {
+        "name": "Wikipedia Albums",
+        "source_type": "scrape",
+        "base_url": "https://en.wikipedia.org/w/api.php",
+        "api_key_env_var": "LASTFM_API_KEY",
+        "is_active": True,
+        "sync_interval": 10080,
     },
     {"name": "Manual", "source_type": "manual", "is_active": True},
 ]

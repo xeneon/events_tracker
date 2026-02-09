@@ -10,6 +10,7 @@ class Settings(BaseSettings):
 
     CALENDARIFIC_API_KEY: str = ""
     TRAKT_CLIENT_ID: str = ""
+    LASTFM_API_KEY: str = ""
 
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000,http://192.168.1.102:3000,http://192.168.1.102"

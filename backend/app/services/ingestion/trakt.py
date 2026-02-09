@@ -5,12 +5,8 @@ import uuid
 from datetime import date
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.category import Category
-from app.models.data_source import DataSource
 from app.services.ingestion.base import BaseIngester
 
 logger = logging.getLogger(__name__)
@@ -36,15 +32,6 @@ def get_impact_level(position: int, total: int) -> int:
 
 
 class TraktIngester(BaseIngester):
-    def __init__(self, session: AsyncSession, source: DataSource):
-        super().__init__(session, source)
-        self._slug_to_id: dict[str, int] = {}
-
-    async def _load_category_map(self):
-        result = await self.session.execute(select(Category))
-        for cat in result.scalars():
-            self._slug_to_id[cat.slug] = cat.id
-
     async def fetch_events(self) -> list[dict]:
         client_id = settings.TRAKT_CLIENT_ID
         if not client_id:

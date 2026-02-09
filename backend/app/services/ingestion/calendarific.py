@@ -6,12 +6,8 @@ from collections import defaultdict
 from datetime import date
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.models.category import Category
-from app.models.data_source import DataSource
 from app.services.ingestion.base import BaseIngester
 
 logger = logging.getLogger(__name__)
@@ -60,15 +56,6 @@ SLUG_TO_IMPACT: dict[str, int] = {
 
 
 class CalendarificIngester(BaseIngester):
-    def __init__(self, session: AsyncSession, source: DataSource):
-        super().__init__(session, source)
-        self._slug_to_id: dict[str, int] = {}
-
-    async def _load_category_map(self):
-        result = await self.session.execute(select(Category))
-        for cat in result.scalars():
-            self._slug_to_id[cat.slug] = cat.id
-
     async def fetch_events(self) -> list[dict]:
         api_key = settings.CALENDARIFIC_API_KEY
         if not api_key:

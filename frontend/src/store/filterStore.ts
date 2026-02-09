@@ -4,11 +4,9 @@ interface FilterState {
   activeCategories: number[];
   searchQuery: string;
   countryCode: string;
-  impactLevelMin: number | null;
   toggleCategory: (id: number, allCategoryIds: number[]) => void;
   setSearchQuery: (q: string) => void;
   setCountryCode: (code: string) => void;
-  setImpactLevelMin: (level: number | null) => void;
   clearFilters: () => void;
 }
 
@@ -16,7 +14,6 @@ export const useFilterStore = create<FilterState>((set) => ({
   activeCategories: [],
   searchQuery: "",
   countryCode: "US",
-  impactLevelMin: null,
 
   toggleCategory: (id, allCategoryIds) =>
     set((state) => {
@@ -46,13 +43,11 @@ export const useFilterStore = create<FilterState>((set) => ({
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setCountryCode: (code) => set({ countryCode: code }),
-  setImpactLevelMin: (level) => set({ impactLevelMin: level }),
 
   clearFilters: () =>
     set({
       activeCategories: [],
       searchQuery: "",
       countryCode: "US",
-      impactLevelMin: null,
     }),
 }));
