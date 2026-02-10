@@ -5,6 +5,8 @@ interface FilterState {
   searchQuery: string;
   countryCode: string;
   toggleCategory: (id: number, allCategoryIds: number[]) => void;
+  selectAllCategories: () => void;
+  selectNoCategories: () => void;
   setSearchQuery: (q: string) => void;
   setCountryCode: (code: string) => void;
   clearFilters: () => void;
@@ -40,6 +42,9 @@ export const useFilterStore = create<FilterState>((set) => ({
 
       return { activeCategories: newCategories };
     }),
+
+  selectAllCategories: () => set({ activeCategories: [] }),
+  selectNoCategories: () => set({ activeCategories: [-1] }),
 
   setSearchQuery: (q) => set({ searchQuery: q }),
   setCountryCode: (code) => set({ countryCode: code }),

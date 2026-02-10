@@ -46,6 +46,7 @@ export interface EventData {
 export interface CalendarEvent {
   id: string;
   title: string;
+  description: string | null;
   start: string;
   end: string | null;
   allDay: boolean;
@@ -55,6 +56,7 @@ export interface CalendarEvent {
   impact_level: number | null;
   popularity_score: number | null;
   country_code: string | null;
+  source_url: string | null;
   rrule: string | null;
 }
 

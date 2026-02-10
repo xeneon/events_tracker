@@ -3,7 +3,7 @@ import { fetchCalendarEvents } from "@/api/events";
 
 const RANKING_START = "2025-01-01";
 const RANKING_END = "2027-12-31";
-const DEFAULT_TOP_N = 30;
+const DEFAULT_TOP_N = 15;
 const MUSIC_RELEASES_CATEGORY = "Music Releases";
 const MUSIC_RELEASES_MIN_LISTENERS = 1_000_000;
 

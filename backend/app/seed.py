@@ -14,13 +14,13 @@ from app.models.user import User
 
 CATEGORIES = [
     {"name": "Federal Holiday", "slug": "federal-holiday", "color": "#dc2626", "icon": "flag", "sort_order": 1},
-    {"name": "State Holiday", "slug": "state-holiday", "color": "#f97316", "icon": "map-pin", "sort_order": 2},
-    {"name": "Observance", "slug": "observance", "color": "#3b82f6", "icon": "eye", "sort_order": 3},
-    {"name": "Religious", "slug": "religious", "color": "#8b5cf6", "icon": "heart", "sort_order": 4},
-    {"name": "Movies", "slug": "movies", "color": "#ef4444", "icon": "film", "sort_order": 6},
-    {"name": "TV Shows", "slug": "tv-shows", "color": "#22c55e", "icon": "tv", "sort_order": 7},
-    {"name": "Fashion", "slug": "fashion", "color": "#ec4899", "icon": "scissors", "sort_order": 8},
-    {"name": "Music Releases", "slug": "music-releases", "color": "#a855f7", "icon": "music", "sort_order": 9},
+    {"name": "State Holiday", "slug": "state-holiday", "color": "#ea580c", "icon": "map-pin", "sort_order": 2},
+    {"name": "Observance", "slug": "observance", "color": "#2563eb", "icon": "eye", "sort_order": 3},
+    {"name": "Religious", "slug": "religious", "color": "#7c3aed", "icon": "heart", "sort_order": 4},
+    {"name": "Movies", "slug": "movies", "color": "#ca8a04", "icon": "film", "sort_order": 6},
+    {"name": "TV Shows", "slug": "tv-shows", "color": "#16a34a", "icon": "tv", "sort_order": 7},
+    {"name": "Fashion", "slug": "fashion", "color": "#db2777", "icon": "scissors", "sort_order": 8},
+    {"name": "Music Releases", "slug": "music-releases", "color": "#92400e", "icon": "music", "sort_order": 9},
     {"name": "Other", "slug": "other", "color": "#6b7280", "icon": "circle", "sort_order": 99},
 ]
 

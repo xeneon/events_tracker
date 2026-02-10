@@ -102,6 +102,7 @@ class EventRead(BaseModel):
 class EventCalendarItem(BaseModel):
     id: str
     title: str
+    description: str | None = None
     start: str  # ISO datetime string
     end: str | None = None
     allDay: bool
@@ -111,6 +112,7 @@ class EventCalendarItem(BaseModel):
     impact_level: int | None = None
     popularity_score: int | None = None
     country_code: str | None = None
+    source_url: str | None = None
     rrule: str | None = None
 
     model_config = {"from_attributes": True}

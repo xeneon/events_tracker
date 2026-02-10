@@ -137,6 +137,7 @@ def _event_to_calendar_item(ev: Event) -> dict:
     return {
         "id": str(ev.id),
         "title": ev.title,
+        "description": ev.description,
         "start": start,
         "end": end,
         "allDay": ev.is_all_day,
@@ -146,6 +147,7 @@ def _event_to_calendar_item(ev: Event) -> dict:
         "impact_level": ev.impact_level,
         "popularity_score": ev.popularity_score,
         "country_code": ev.country_code,
+        "source_url": ev.source_url,
         "rrule": None,
     }
 
@@ -185,6 +187,7 @@ def _expand_recurring(ev: Event, range_start: date, range_end: date) -> list[dic
         items.append({
             "id": f"{ev.id}_{occ_date.isoformat()}",
             "title": ev.title,
+            "description": ev.description,
             "start": start,
             "end": end,
             "allDay": ev.is_all_day,
@@ -194,6 +197,7 @@ def _expand_recurring(ev: Event, range_start: date, range_end: date) -> list[dic
             "impact_level": ev.impact_level,
             "popularity_score": ev.popularity_score,
             "country_code": ev.country_code,
+            "source_url": ev.source_url,
             "rrule": None,
         })
     return items

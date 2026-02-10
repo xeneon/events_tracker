@@ -39,3 +39,25 @@
 .fc .fc-event:hover {
   opacity: 0.85;
 }
+
+/* Week view: taller cells, larger events */
+.fc .fc-dayGridWeek-view .fc-daygrid-day {
+  min-height: 200px;
+}
+
+.fc .fc-dayGridWeek-view .fc-daygrid-day-frame {
+  min-height: 200px;
+}
+
+.fc .fc-dayGridWeek-view .fc-daygrid-event {
+  font-size: 0.875rem;
+  padding: 3px 6px;
+  margin-bottom: 2px;
+  white-space: normal;
+  overflow: visible;
+}
+
+.fc .fc-dayGridWeek-view .fc-event-title {
+  white-space: normal;
+  overflow: visible;
+}

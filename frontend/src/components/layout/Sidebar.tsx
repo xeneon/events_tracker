@@ -6,6 +6,8 @@ export default function Sidebar() {
   const {
     activeCategories,
     toggleCategory,
+    selectAllCategories,
+    selectNoCategories,
     searchQuery,
     setSearchQuery,
   } = useFilterStore();
@@ -26,9 +28,25 @@ export default function Sidebar() {
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
-          Categories
-        </label>
+        <div className="flex items-center justify-between mb-2">
+          <label className="text-xs font-semibold text-gray-500 uppercase">
+            Categories
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={selectAllCategories}
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              All
+            </button>
+            <button
+              onClick={selectNoCategories}
+              className="text-xs font-medium text-indigo-600 hover:text-indigo-800"
+            >
+              None
+            </button>
+          </div>
+        </div>
         <div className="space-y-1">
           {categories.map((cat) => (
             <label key={cat.id} className="flex items-center gap-2 cursor-pointer py-1">
