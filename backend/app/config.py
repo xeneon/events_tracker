@@ -1,4 +1,13 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings
+
+# Locate .env: check backend/ first, then project root
+_env_file = Path(".env")
+if not _env_file.exists():
+    _parent_env = Path(__file__).resolve().parents[2] / ".env"
+    if _parent_env.exists():
+        _env_file = _parent_env
 
 
 class Settings(BaseSettings):
@@ -15,7 +24,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:3000,http://192.168.1.102:3000,http://192.168.1.102"
 
-    model_config = {"env_file": ".env", "extra": "ignore"}
+    model_config = {"env_file": str(_env_file), "extra": "ignore"}
 
     @property
     def cors_origins_list(self) -> list[str]:

@@ -29,6 +29,21 @@ python -m app.seed                    # Seed categories, data sources, superuser
 python -m app.cleanup_old_data        # One-time: remove old sources/events/categories
 ```
 
+### CLI Ingestion (standalone)
+
+The `backend/ingest/` package is a self-contained CLI for running ingesters — no imports from `app/`. It has its own config, DB setup, and model definitions.
+
+```bash
+cd backend
+python -m ingest --list                    # List available ingesters
+python -m ingest calendarific              # Run a specific ingester
+python -m ingest trakt --dry-run           # Dry run — fetch & normalize, no DB writes
+python -m ingest --all                     # Run all ingesters
+python -m ingest --all --dry-run           # Dry run all ingesters
+```
+
+Available ingester names: `calendarific`, `trakt`, `fashion-weeks`, `wikipedia-albums`.
+
 Package manager: `uv` (pip is not available). Example: `/home/dev/.local/bin/uv pip install -e ".[dev]"`
 
 ### Frontend (local)
