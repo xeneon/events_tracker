@@ -17,6 +17,7 @@ from sqlalchemy import select
 
 from .base import BaseIngester
 from .calendarific import CalendarificIngester
+from .config import settings
 from .db import async_session_maker
 from .fashion_weeks import FashionWeeksIngester
 from .models import DataSource
@@ -98,12 +99,32 @@ async def run_source(name: str, dry_run: bool = False) -> None:
 
 
 async def run_all(dry_run: bool = False) -> None:
-    """Run all ingesters in sequence."""
+    """Run all ingesters in sequence, then export to Google Sheets."""
     for alias in SOURCE_ALIASES:
         print(f"\n{'='*40}")
         print(f"Running: {alias}")
         print(f"{'='*40}")
         await run_source(alias, dry_run=dry_run)
+
+    # Export to Google Sheets after all ingesters complete
+    print(f"\n{'='*40}")
+    print(f"Running: export-sheets")
+    print(f"{'='*40}")
+    if dry_run:
+        from .export_sheets import fetch_rows
+        rows = await fetch_rows()
+        for row in rows[:10]:
+            print(row)
+        if len(rows) > 10:
+            print(f"... and {len(rows) - 10} more rows")
+        print("Dry run complete — no sheet writes.")
+    else:
+        from .export_sheets import fetch_rows, write_to_sheet
+        rows = await fetch_rows()
+        print(f"Fetched {len(rows)} rows from database.")
+        count = write_to_sheet(rows)
+        tab_name = settings.GOOGLE_SHEET_TAB
+        print(f"Wrote {count} rows + header to '{tab_name}'.")
 
 
 def main() -> None:
