@@ -33,7 +33,7 @@ WITH dataset AS (
         ) AS dense_rank
     FROM public.events e
     INNER JOIN public.categories c ON e.category_id = c.id
-    WHERE start_date < '2027-01-01'
+    WHERE start_date < (date_trunc('year', current_date) + interval '1 year')
       AND start_date >= date_trunc('month', current_date)
     ORDER BY start_date
 )

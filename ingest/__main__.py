@@ -19,8 +19,8 @@ from .base import BaseIngester
 from .calendarific import CalendarificIngester
 from .config import settings
 from .db import async_session_maker
-from .fashion_weeks import FashionWeeksIngester
 from .models import DataSource
+from .igdb import IGDBIngester
 from .trakt import TraktIngester
 from .wikipedia_albums import WikipediaAlbumsIngester
 
@@ -28,15 +28,15 @@ logger = logging.getLogger(__name__)
 
 INGESTERS: dict[str, type[BaseIngester]] = {
     "Calendarific": CalendarificIngester,
-    "Fashion Weeks": FashionWeeksIngester,
+    "IGDB": IGDBIngester,
     "Trakt": TraktIngester,
     "Wikipedia Albums": WikipediaAlbumsIngester,
 }
 
 SOURCE_ALIASES: dict[str, str] = {
     "calendarific": "Calendarific",
+    "igdb": "IGDB",
     "trakt": "Trakt",
-    "fashion-weeks": "Fashion Weeks",
     "wikipedia-albums": "Wikipedia Albums",
 }
 

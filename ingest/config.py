@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     CALENDARIFIC_API_KEY: str = ""
     TRAKT_CLIENT_ID: str = ""
+    TWITCH_CLIENT_ID: str = ""
+    TWITCH_CLIENT_SECRET: str = ""
     LASTFM_API_KEY: str = ""
     GOOGLE_SHEET_ID: str = ""
     GOOGLE_SHEET_TAB: str = "Sheet1"
