@@ -4,7 +4,7 @@ import logging
 import uuid
 from datetime import date
 
-from .base import BaseIngester
+from .base import BaseIngester, slugify
 
 logger = logging.getLogger(__name__)
 
@@ -300,11 +300,6 @@ FASHION_EVENTS_2026: list[dict] = [
 ]
 
 
-def _slugify(name: str) -> str:
-    """Convert event name to a URL-safe slug."""
-    return name.lower().replace("'", "").replace(" ", "-")
-
-
 class FashionWeeksIngester(BaseIngester):
     """Ingests curated fashion week and major fashion event data."""
 
@@ -321,7 +316,7 @@ class FashionWeeksIngester(BaseIngester):
         if not start:
             return None
 
-        slug = _slugify(name)
+        slug = slugify(name)
         category_id = self._slug_to_id.get(
             "fashion", self._slug_to_id.get("other")
         )
@@ -350,7 +345,3 @@ class FashionWeeksIngester(BaseIngester):
             "source_url": raw.get("url"),
             "image_url": None,
         }
-
-    async def run(self) -> int:
-        await self._load_category_map()
-        return await super().run()

@@ -8,7 +8,6 @@ Usage:
 
 import argparse
 import asyncio
-import sys
 from pathlib import Path
 
 import gspread
@@ -79,8 +78,7 @@ def _resolve_credentials_path() -> Path:
     """Find the credentials JSON file."""
     raw = settings.GOOGLE_CREDENTIALS_FILE
     if not raw:
-        print("Error: GOOGLE_CREDENTIALS_FILE not set in .env")
-        sys.exit(1)
+        raise RuntimeError("GOOGLE_CREDENTIALS_FILE not set in .env")
 
     path = Path(raw)
     if path.is_absolute() and path.exists():
@@ -98,8 +96,7 @@ def _resolve_credentials_path() -> Path:
         if candidate.exists():
             return candidate
 
-    print(f"Error: Credentials file '{raw}' not found")
-    sys.exit(1)
+    raise FileNotFoundError(f"Credentials file '{raw}' not found")
 
 
 def _resize_table_and_filter(gc, spreadsheet_id: str, sheet_id: int, total_rows: int, num_cols: int):
@@ -182,8 +179,7 @@ def write_to_sheet(rows: list[list]) -> int:
     tab_name = settings.GOOGLE_SHEET_TAB
 
     if not sheet_id:
-        print("Error: GOOGLE_SHEET_ID not set in .env")
-        sys.exit(1)
+        raise RuntimeError("GOOGLE_SHEET_ID not set in .env")
 
     spreadsheet = gc.open_by_key(sheet_id)
     worksheet = spreadsheet.worksheet(tab_name)

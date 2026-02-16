@@ -16,7 +16,7 @@ _env_file = next((p for p in _candidates if p.exists()), ".env")
 
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "postgresql+asyncpg://events_user:events_password@192.168.1.103:5432/events_tracker"
+    DATABASE_URL: str
     CALENDARIFIC_API_KEY: str = ""
     TRAKT_CLIENT_ID: str = ""
     LASTFM_API_KEY: str = ""
