@@ -9,7 +9,7 @@ from datetime import date
 import httpx
 from bs4 import BeautifulSoup, Tag
 
-from .base import BaseIngester
+from .base import BaseIngester, slugify
 from .config import settings
 
 logger = logging.getLogger(__name__)
@@ -33,13 +33,6 @@ def _listeners_to_impact(listeners: int | None) -> int:
     if listeners < 5_000_000:
         return 4
     return 5
-
-
-def _slugify(text: str) -> str:
-    """Create a simple slug from text for use in external_id."""
-    text = text.lower().strip()
-    text = re.sub(r"[^a-z0-9]+", "_", text)
-    return text.strip("_")[:80]
 
 
 class WikipediaAlbumsIngester(BaseIngester):
@@ -330,8 +323,8 @@ class WikipediaAlbumsIngester(BaseIngester):
         if not artist or not album or not release_date:
             return None
 
-        artist_slug = _slugify(artist)
-        album_slug = _slugify(album)
+        artist_slug = slugify(artist, separator="_")
+        album_slug = slugify(album, separator="_")
         external_id = f"wiki_album_{artist_slug}_{album_slug}_{release_date.isoformat()}"
 
         title = f"{album} – {artist}"
@@ -373,7 +366,3 @@ class WikipediaAlbumsIngester(BaseIngester):
             "source_url": source_url,
             "image_url": raw.get("_lastfm_image"),
         }
-
-    async def run(self) -> int:
-        await self._load_category_map()
-        return await super().run()

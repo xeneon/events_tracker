@@ -1,6 +1,7 @@
 """Abstract base class for data ingesters."""
 
 import logging
+import re
 from abc import ABC, abstractmethod
 from datetime import date, datetime, time, timezone
 
@@ -11,6 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import Category, DataSource, Event
 
 logger = logging.getLogger(__name__)
+
+
+def slugify(text: str, separator: str = "-") -> str:
+    """Create a slug from text, using the given separator for non-alphanumeric runs."""
+    text = text.lower().strip()
+    text = re.sub(r"[^a-z0-9]+", separator, text)
+    return text.strip(separator)[:80]
 
 
 class BaseIngester(ABC):
@@ -98,10 +106,12 @@ class BaseIngester(ABC):
         await self.session.commit()
         return count
 
-    async def run(self) -> int:
+    async def run(self, dry_run: bool = False) -> int:
         """Fetch, normalize, and upsert events."""
         logger.info(f"Starting ingestion for {self.source.name}")
         try:
+            await self._load_category_map()
+
             raw_events = await self.fetch_events()
             logger.info(f"Fetched {len(raw_events)} raw events from {self.source.name}")
 
@@ -110,6 +120,10 @@ class BaseIngester(ABC):
                 result = self.normalize(raw)
                 if result:
                     normalized.append(result)
+
+            if dry_run:
+                logger.info(f"Dry run: {len(normalized)} normalized events from {self.source.name}")
+                return len(normalized)
 
             count = await self.upsert_events(normalized)
 

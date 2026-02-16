@@ -143,7 +143,3 @@ class CalendarificIngester(BaseIngester):
             "source_url": raw.get("canonical_url"),
             "image_url": None,
         }
-
-    async def run(self) -> int:
-        await self._load_category_map()
-        return await super().run()

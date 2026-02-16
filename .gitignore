@@ -21,6 +21,9 @@ frontend/.vite/
 .env.local
 .env.production
 
+# Google service account credentials
+gen-lang-client-*.json
+
 # IDE
 .vscode/
 .idea/

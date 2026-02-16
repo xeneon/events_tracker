@@ -41,16 +41,6 @@ SOURCE_ALIASES: dict[str, str] = {
 }
 
 
-async def run_ingestion_for_source(source: DataSource, session) -> int:
-    """Instantiate the right ingester and run it."""
-    ingester_cls = INGESTERS.get(source.name)
-    if not ingester_cls:
-        print(f"Error: No ingester class registered for '{source.name}'.")
-        return 0
-    ingester = ingester_cls(session, source)
-    return await ingester.run()
-
-
 async def run_source(name: str, dry_run: bool = False) -> None:
     """Run a single ingester by its CLI alias name."""
     source_name = SOURCE_ALIASES.get(name)
@@ -74,27 +64,11 @@ async def run_source(name: str, dry_run: bool = False) -> None:
             print("Have you run the seed script?  cd backend && python -m app.seed")
             sys.exit(1)
 
+        ingester = ingester_cls(session, source)
+        count = await ingester.run(dry_run=dry_run)
         if dry_run:
-            ingester = ingester_cls(session, source)
-            await ingester._load_category_map()
-            print(f"Fetching events from {source_name}...")
-            raw_events = await ingester.fetch_events()
-            print(f"  Fetched {len(raw_events)} raw events")
-
-            normalized = []
-            for raw in raw_events:
-                evt = ingester.normalize(raw)
-                if evt:
-                    normalized.append(evt)
-            print(f"  Normalized {len(normalized)} events (skipped {len(raw_events) - len(normalized)})")
-
-            if normalized:
-                sample = normalized[0]
-                print(f"  Sample: {sample.get('title', 'N/A')} "
-                      f"({sample.get('start_date', 'N/A')})")
-            print("Dry run complete — no database writes.")
+            print(f"Dry run complete — {count} events normalized from {source_name}.")
         else:
-            count = await run_ingestion_for_source(source, session)
             print(f"Ingested {count} events from {source_name}.")
 
 
