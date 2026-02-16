@@ -30,7 +30,7 @@ All code is in the `ingest/` package:
 - `base.py` - Base ingester class
 - `calendarific.py` - US holidays ingester
 - `trakt.py` - Movies & TV shows ingester
-- `fashion_weeks.py` - Fashion weeks ingester (curated data)
+- `igdb.py` - Upcoming video game releases ingester (via IGDB/Twitch)
 - `wikipedia_albums.py` - Album releases ingester (with Last.fm enrichment)
 - `export_sheets.py` - Google Sheets exporter
 
@@ -47,6 +47,8 @@ Required in `.env`:
 - `DATABASE_URL` - PostgreSQL connection string
 - `CALENDARIFIC_API_KEY` - For US holidays
 - `TRAKT_CLIENT_ID` - For movies/TV shows
+- `TWITCH_CLIENT_ID` - For IGDB video game releases (Twitch OAuth)
+- `TWITCH_CLIENT_SECRET` - For IGDB video game releases (Twitch OAuth)
 - `LASTFM_API_KEY` - For album release enrichment
 - `GOOGLE_SHEET_ID` - Target spreadsheet ID
 - `GOOGLE_SHEET_TAB` - Tab name (default: "Sheet1")
@@ -60,7 +62,7 @@ Use `pip` for installing dependencies from `requirements.txt`.
 
 - **Calendarific:** Deduplicates multiple entries per holiday in `fetch_events()` before normalizing. Uses `primary_type` (not `type` array) for category mapping. Region field uses state abbreviations to fit 200-char limit.
 - **Trakt:** Impact level 1-5 based on ranking position. Handles both movies and TV shows.
-- **Fashion Weeks:** Static curated data. Manual sync recommended monthly.
+- **IGDB:** Fetches upcoming games, ranked by PopScore "Want to Play" metric (live anticipation data, updated daily). `popularity_score` stored as Want to Play × 1M. Impact levels based on Want to Play thresholds: 0.001+ → 5, 0.0004+ → 4, 0.0002+ → 3, 0.0001+ → 2. Auth via Twitch client credentials (fresh token per run). Category slug: `video-games`.
 - **Wikipedia Albums:** Scrapes wikitables, enriches with Last.fm. 200ms rate limit between Last.fm requests. Impact levels based on listener counts (5M+ → 5, 1M+ → 4, etc.).
 - **Google Sheets export:** Runs automatically after `--all`, or standalone via `python -m ingest.export_sheets`. Preserves table formatting (filters, banding, conditional formatting).
 
