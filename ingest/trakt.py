@@ -18,33 +18,6 @@ CATEGORY_SLUGS = {
     "show": "tv-shows",
 }
 
-# Impact level based on list_count ranking (position in results)
-def get_impact_level(position: int, total: int) -> int:
-    """Map position to impact level 1-5 (top items get highest impact)."""
-    if position <= total * 0.1:  # Top 10%
-        return 5
-    elif position <= total * 0.25:  # Top 25%
-        return 4
-    elif position <= total * 0.5:  # Top 50%
-        return 3
-    elif position <= total * 0.75:  # Top 75%
-        return 2
-    return 1
-
-
-def get_premiere_impact_level(votes: int) -> int:
-    """Map Trakt vote count to impact level 1-5 for season premieres."""
-    if votes >= 100_000:
-        return 5
-    elif votes >= 50_000:
-        return 4
-    elif votes >= 10_000:
-        return 3
-    elif votes >= 1_000:
-        return 2
-    return 1
-
-
 class TraktIngester(BaseIngester):
     async def fetch_events(self) -> list[dict]:
         client_id = settings.TRAKT_CLIENT_ID
@@ -69,10 +42,8 @@ class TraktIngester(BaseIngester):
                 )
                 resp.raise_for_status()
                 movies = resp.json()
-                for idx, item in enumerate(movies):
+                for item in movies:
                     item["_type"] = "movie"
-                    item["_position"] = idx
-                    item["_total"] = len(movies)
                 raw_events.extend(movies)
                 logger.info(f"Trakt: fetched {len(movies)} anticipated movies")
             except Exception as exc:
@@ -86,10 +57,8 @@ class TraktIngester(BaseIngester):
                 )
                 resp.raise_for_status()
                 shows = resp.json()
-                for idx, item in enumerate(shows):
+                for item in shows:
                     item["_type"] = "show"
-                    item["_position"] = idx
-                    item["_total"] = len(shows)
                 raw_events.extend(shows)
                 logger.info(f"Trakt: fetched {len(shows)} anticipated TV shows")
             except Exception as exc:
@@ -158,9 +127,6 @@ class TraktIngester(BaseIngester):
 
         if item_type == "premiere":
             return self._normalize_premiere(raw)
-
-        position = raw.get("_position", 0)
-        total = raw.get("_total", 100)
 
         # Get the movie or show object
         content = raw.get("movie") or raw.get("show")
@@ -249,7 +215,6 @@ class TraktIngester(BaseIngester):
             "end_date": None,
             "is_all_day": True,
             "category_id": category_id,
-            "impact_level": get_impact_level(position, total),
             "popularity_score": list_count,
             "country_code": content.get("country", "").upper()[:2] or None,
             "region": None,
@@ -288,9 +253,7 @@ class TraktIngester(BaseIngester):
         # Category: tv-shows
         category_id = self._slug_to_id.get("tv-shows", self._slug_to_id.get("other"))
 
-        # Impact based on vote count
         votes = show.get("votes", 0) or 0
-        impact_level = get_premiere_impact_level(votes)
 
         # Source URL: prefer IMDB
         slug_name = show.get("ids", {}).get("slug", "")
@@ -336,7 +299,6 @@ class TraktIngester(BaseIngester):
             "end_date": None,
             "is_all_day": True,
             "category_id": category_id,
-            "impact_level": impact_level,
             "popularity_score": votes,
             "country_code": show.get("country", "").upper()[:2] or None,
             "region": None,

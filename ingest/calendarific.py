@@ -45,16 +45,6 @@ DEDUP_PRIORITY: dict[str, int] = {
     "Local observance": 5,
 }
 
-# Category slug → impact level
-SLUG_TO_IMPACT: dict[str, int] = {
-    "federal-holiday": 5,
-    "state-holiday": 4,
-    "religious": 3,
-    "observance": 2,
-    "other": 1,
-}
-
-
 class CalendarificIngester(BaseIngester):
     async def fetch_events(self) -> list[dict]:
         api_key = settings.CALENDARIFIC_API_KEY
@@ -137,7 +127,6 @@ class CalendarificIngester(BaseIngester):
             "end_date": None,
             "is_all_day": True,
             "category_id": category_id,
-            "impact_level": SLUG_TO_IMPACT.get(slug, 1),
             "country_code": "US",
             "region": region,
             "source_url": raw.get("canonical_url"),

@@ -23,18 +23,6 @@ WIKIPEDIA_API = "https://en.wikipedia.org/w/api.php"
 LASTFM_API = "https://ws.audioscrobbler.com/2.0/"
 
 
-def _listeners_to_impact(listeners: int | None) -> int:
-    if listeners is None or listeners < 50_000:
-        return 1
-    if listeners < 250_000:
-        return 2
-    if listeners < 1_000_000:
-        return 3
-    if listeners < 5_000_000:
-        return 4
-    return 5
-
-
 class WikipediaAlbumsIngester(BaseIngester):
     def __init__(self, session, source):
         super().__init__(session, source)
@@ -359,7 +347,6 @@ class WikipediaAlbumsIngester(BaseIngester):
             "end_date": None,
             "is_all_day": True,
             "category_id": category_id,
-            "impact_level": _listeners_to_impact(listeners),
             "popularity_score": listeners or 0,
             "country_code": None,
             "region": None,

@@ -19,26 +19,8 @@ IGDB_API_URL = "https://api.igdb.com/v4"
 WANT_TO_PLAY_TYPE = 2
 
 
-def _want_to_play_to_impact(score: float) -> int:
-    """Map Want to Play score (0-1 normalized) to impact level 1-5.
-
-    Thresholds based on observed distribution of upcoming games:
-      GTA VI ≈ 0.00158, top titles ≈ 0.0004-0.0006, mid ≈ 0.0001-0.0003
-    """
-    if score >= 0.001:
-        return 5
-    if score >= 0.0004:
-        return 4
-    if score >= 0.0002:
-        return 3
-    if score >= 0.0001:
-        return 2
-    return 1
-
-
 def _get_date_qualifier(release_dates: list[dict], first_release_ts: int) -> str | None:
     """Return a qualifier like 'TBD', '2026', 'Q3 2026' if the date is approximate, else None."""
-    # Find the release_date entry matching first_release_date
     human = None
     for rd in release_dates:
         if rd.get("date") == first_release_ts:
@@ -46,7 +28,6 @@ def _get_date_qualifier(release_dates: list[dict], first_release_ts: int) -> str
             break
 
     if not human:
-        # Fallback: use the first entry's human string
         if release_dates:
             human = release_dates[0].get("human", "")
 
@@ -56,13 +37,10 @@ def _get_date_qualifier(release_dates: list[dict], first_release_ts: int) -> str
     human = human.strip()
     if human.upper() == "TBD":
         return "release date TBD"
-    # Year only, e.g. "2026"
     if re.fullmatch(r"\d{4}", human):
         return f"expected {human}"
-    # Quarter, e.g. "Q3 2026"
     if re.fullmatch(r"Q[1-4]\s+\d{4}", human):
         return f"expected {human}"
-    # Full date — no qualifier needed
     return None
 
 
@@ -124,7 +102,6 @@ class IGDBIngester(BaseIngester):
             game_ids = [g["id"] for g in games]
             want_to_play: dict[int, float] = {}
 
-            # Batch in groups of 50 (IGDB where-in limit)
             for i in range(0, len(game_ids), 50):
                 batch_ids = ",".join(str(gid) for gid in game_ids[i:i + 50])
                 try:
@@ -165,9 +142,7 @@ class IGDBIngester(BaseIngester):
 
         release_date = datetime.fromtimestamp(release_ts, tz=timezone.utc).date()
         want_to_play = raw.get("_want_to_play", 0.0)
-
-        # Scale to integer for storage (multiply by 1M for readable values)
-        popularity_score = int(want_to_play * 1_000_000)
+        hypes = raw.get("hypes", 0)
 
         # Detect date precision from the human-readable release date string
         date_qualifier = _get_date_qualifier(raw.get("release_dates") or [], release_ts)
@@ -177,7 +152,6 @@ class IGDBIngester(BaseIngester):
         image_url = None
         if cover and cover.get("url"):
             url = cover["url"]
-            # Upgrade to larger image (t_thumb -> t_cover_big)
             url = url.replace("t_thumb", "t_cover_big")
             image_url = f"https:{url}" if url.startswith("//") else url
 
@@ -197,7 +171,7 @@ class IGDBIngester(BaseIngester):
         ]
         publisher_str = ", ".join(publishers[:2])
 
-        # Description
+        # Description — raw hypes shown for human context
         summary = raw.get("summary") or ""
         desc_parts = []
         if genre_str:
@@ -206,6 +180,8 @@ class IGDBIngester(BaseIngester):
             desc_parts.append(platform_str)
         if publisher_str:
             desc_parts.append(publisher_str)
+        if hypes:
+            desc_parts.append(f"{hypes:,} IGDB hypes")
         description = " | ".join(desc_parts)
         if summary:
             description += f"\n\n{summary}"
@@ -221,6 +197,10 @@ class IGDBIngester(BaseIngester):
         if date_qualifier:
             title = f"{name} ({date_qualifier})"
 
+        # Scale Want to Play to integer for log-scaling in base class
+        # Multiply by 1M so log_scale_score gets meaningful integer values
+        popularity_raw = int(want_to_play * 1_000_000)
+
         return {
             "id": uuid.uuid4(),
             "external_id": f"igdb_{igdb_id}",
@@ -230,8 +210,7 @@ class IGDBIngester(BaseIngester):
             "end_date": None,
             "is_all_day": True,
             "category_id": category_id,
-            "impact_level": _want_to_play_to_impact(want_to_play),
-            "popularity_score": popularity_score,
+            "popularity_score": popularity_raw,
             "country_code": None,
             "region": None,
             "source_url": source_url,
