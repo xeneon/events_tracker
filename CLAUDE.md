@@ -72,6 +72,15 @@ Two fields track popularity:
 - **Wikipedia Albums:** Scrapes wikitables, enriches with Last.fm. 200ms rate limit between Last.fm requests. Raw metric: Last.fm listeners, shown in description.
 - **Google Sheets export:** Runs automatically after `--all`, or standalone via `python -m ingest.export_sheets`. Preserves table formatting (filters, banding, conditional formatting). Export uses `impact_level` (log-scaled 0-100) for ranking: top 15 per category or score >= 50.
 
+## IGDB API Reference
+
+See `docs/igdb-api.md` for full API documentation (all endpoints, fields, popularity types, query syntax). Key points for working with `igdb.py`:
+
+- Auth: Twitch OAuth2 client_credentials grant. Rate limit: 4 req/sec, max 500 results.
+- Primary metric: PopScore "Want to Play" (popularity_type=2, covers all platforms).
+- Steam Wishlists (popularity_type=10) is a strong anticipation signal but **PC-only** — console exclusives will have no data. Use alongside type=2, not as replacement.
+- `/events` endpoint has gaming conventions (Summer Game Fest, etc.) with dates — potential new ingester category.
+
 ## Current Date
 
 Today's date is 2026-02-16.
