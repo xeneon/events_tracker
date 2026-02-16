@@ -58,13 +58,19 @@ Required in `.env`:
 
 Use `pip` for installing dependencies from `requirements.txt`.
 
+## Popularity Scoring
+
+Two fields track popularity:
+- **`popularity_score`** (Integer) — raw metric value from the source (e.g. 6,751,421 Last.fm listeners, 1,584 IGDB Want-to-Play × 1M, 35,017 Trakt votes). Preserved as-is for transparency.
+- **`impact_level`** (SmallInteger, 0-100) — log-scaled score computed by `BaseIngester._apply_log_scale()` after normalization. Formula: `log(1+value)/log(1+max_value)*100`. Preserves magnitude differences and enables cross-category comparison (100 = category leader).
+
 ## Key Conventions
 
-- **Calendarific:** Deduplicates multiple entries per holiday in `fetch_events()` before normalizing. Uses `primary_type` (not `type` array) for category mapping. Region field uses state abbreviations to fit 200-char limit.
-- **Trakt:** Impact level 1-5 based on ranking position. Handles both movies and TV shows.
-- **IGDB:** Fetches upcoming games, ranked by PopScore "Want to Play" metric (live anticipation data, updated daily). `popularity_score` stored as Want to Play × 1M. Impact levels based on Want to Play thresholds: 0.001+ → 5, 0.0004+ → 4, 0.0002+ → 3, 0.0001+ → 2. Auth via Twitch client credentials (fresh token per run). Category slug: `video-games`.
-- **Wikipedia Albums:** Scrapes wikitables, enriches with Last.fm. 200ms rate limit between Last.fm requests. Impact levels based on listener counts (5M+ → 5, 1M+ → 4, etc.).
-- **Google Sheets export:** Runs automatically after `--all`, or standalone via `python -m ingest.export_sheets`. Preserves table formatting (filters, banding, conditional formatting).
+- **Calendarific:** Deduplicates multiple entries per holiday in `fetch_events()` before normalizing. Uses `primary_type` (not `type` array) for category mapping. Region field uses state abbreviations to fit 200-char limit. No raw popularity metric (holidays have no anticipation data).
+- **Trakt:** Handles anticipated movies, TV shows, and season premieres. Raw metric: `list_count` (anticipated) / `votes` (premieres), shown in description.
+- **IGDB:** Fetches upcoming games, ranked by PopScore "Want to Play" metric (live anticipation data). Raw metric: Want to Play × 1M, `hypes` count shown in description. Auth via Twitch client credentials (fresh token per run). Category slug: `video-games`.
+- **Wikipedia Albums:** Scrapes wikitables, enriches with Last.fm. 200ms rate limit between Last.fm requests. Raw metric: Last.fm listeners, shown in description.
+- **Google Sheets export:** Runs automatically after `--all`, or standalone via `python -m ingest.export_sheets`. Preserves table formatting (filters, banding, conditional formatting). Export uses `impact_level` (log-scaled 0-100) for ranking: top 15 per category or score >= 50.
 
 ## Current Date
 

@@ -25,11 +25,12 @@ WITH dataset AS (
         c.name AS category,
         title,
         e.description,
-        popularity_score,
+        e.impact_level AS popularity_score,
+        popularity_score AS raw_popularity,
         source_url,
         dense_rank() OVER (
             PARTITION BY c.name
-            ORDER BY popularity_score DESC
+            ORDER BY e.impact_level DESC NULLS LAST
         ) AS dense_rank
     FROM public.events e
     INNER JOIN public.categories c ON e.category_id = c.id
@@ -46,8 +47,8 @@ SELECT
     popularity_score,
     source_url
 FROM dataset
-WHERE dense_rank <= 15 OR popularity_score >= 1000000
-ORDER BY start_date, category
+WHERE dense_rank <= 15 OR popularity_score >= 50
+ORDER BY start_date, category, popularity_score desc
 """)
 
 HEADERS = [
@@ -142,7 +143,7 @@ def _resize_table_and_filter(gc, spreadsheet_id: str, sheet_id: int, total_rows:
     requests = []
     for table in target_sheet.get("tables", []):
         table_range = table.get("range", {})
-        if table_range.get("startColumnIndex", 0) == 0 and table_range.get("endColumnIndex") == num_cols:
+        if table_range.get("startColumnIndex", 0) == 0:
             requests.append({
                 "updateTable": {
                     "table": {"tableId": table["tableId"], "range": new_range},
@@ -152,7 +153,7 @@ def _resize_table_and_filter(gc, spreadsheet_id: str, sheet_id: int, total_rows:
 
     for banded in target_sheet.get("bandedRanges", []):
         br = banded.get("range", {})
-        if br.get("startColumnIndex", 0) == 0 and br.get("endColumnIndex") == num_cols:
+        if br.get("startColumnIndex", 0) == 0:
             requests.append({
                 "updateBanding": {
                     "bandedRange": {"bandedRangeId": banded["bandedRangeId"], "range": new_range},

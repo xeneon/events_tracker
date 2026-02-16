@@ -1,6 +1,7 @@
 """Abstract base class for data ingesters."""
 
 import logging
+import math
 import re
 from abc import ABC, abstractmethod
 from datetime import date, datetime, time, timezone
@@ -12,6 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .models import Category, DataSource, Event
 
 logger = logging.getLogger(__name__)
+
+
+def scaled_score(value: float, max_value: float) -> int:
+    """Normalize a raw metric to 0-100 using square-root scale relative to the category max.
+
+    sqrt preserves magnitude gaps better than log: a dominant item (100) shows a
+    clear gap from mid-tier items (~40-60), while niche items stay low (<20).
+    """
+    if max_value <= 0 or value <= 0:
+        return 0
+    score = math.sqrt(value) / math.sqrt(max_value) * 100
+    return max(0, min(100, round(score)))
 
 
 def slugify(text: str, separator: str = "-") -> str:
@@ -106,6 +119,21 @@ class BaseIngester(ABC):
         await self.session.commit()
         return count
 
+    @staticmethod
+    def _apply_log_scale(events: list[dict]) -> None:
+        """Set impact_level to log-scaled 0-100 based on raw popularity_score.
+
+        popularity_score is preserved as-is (raw value).
+        impact_level is overwritten with the log-scaled score for cross-category comparison.
+        """
+        scores = [e.get("popularity_score") or 0 for e in events]
+        max_score = max(scores) if scores else 0
+        if max_score <= 0:
+            return
+        for event in events:
+            raw = event.get("popularity_score") or 0
+            event["impact_level"] = scaled_score(raw, max_score)
+
     async def run(self, dry_run: bool = False) -> int:
         """Fetch, normalize, and upsert events."""
         logger.info(f"Starting ingestion for {self.source.name}")
@@ -120,6 +148,8 @@ class BaseIngester(ABC):
                 result = self.normalize(raw)
                 if result:
                     normalized.append(result)
+
+            self._apply_log_scale(normalized)
 
             if dry_run:
                 logger.info(f"Dry run: {len(normalized)} normalized events from {self.source.name}")
