@@ -72,6 +72,16 @@ Two fields track popularity:
 - **Wikipedia Albums:** Scrapes wikitables, enriches with Last.fm. 200ms rate limit between Last.fm requests. Raw metric: Last.fm listeners, shown in description.
 - **Google Sheets export:** Runs automatically after `--all`, or standalone via `python -m ingest.export_sheets`. Preserves table formatting (filters, banding, conditional formatting). Export uses `impact_level` (log-scaled 0-100) for ranking: top 15 per category or score >= 50.
 
+## Calendarific API Reference
+
+See `docs/calendarific-api.md` for full API documentation (3 endpoints, holiday types, deduplication notes). Key points for working with `calendarific.py`:
+
+- Auth: API key as query parameter. Rate limit: 1,000 requests/day (free plan).
+- Single endpoint: `/holidays` with `country`, `year`, optional `month`, `day`, `location`, `type` filters.
+- Returns ~633 raw entries for US/year; same holiday repeated per state grouping — ingester deduplicates to ~250.
+- `primary_type` field (not `type` array) is used for category mapping. 19 distinct values for US.
+- 230 countries supported — currently only US is ingested. No popularity metric available.
+
 ## IGDB API Reference
 
 See `docs/igdb-api.md` for full API documentation (all endpoints, fields, popularity types, query syntax). Key points for working with `igdb.py`:
@@ -80,6 +90,16 @@ See `docs/igdb-api.md` for full API documentation (all endpoints, fields, popula
 - Primary metric: PopScore "Want to Play" (popularity_type=2, covers all platforms).
 - Steam Wishlists (popularity_type=10) is a strong anticipation signal but **PC-only** — console exclusives will have no data. Use alongside type=2, not as replacement.
 - `/events` endpoint has gaming conventions (Summer Game Fest, etc.) with dates — potential new ingester category.
+
+## Trakt API Reference
+
+See `docs/trakt-api.md` for full API documentation (170 endpoints, filters, extended info, pagination). Key points for working with `trakt.py`:
+
+- Auth: API key only (no OAuth needed for public data). Rate limit: 1000 GET calls / 5 min.
+- Primary metric: `list_count` from `/movies/anticipated` and `/shows/anticipated` endpoints.
+- Season premieres: currently found via `/shows/favorited` + `/shows/popular` → `/shows/{id}/next_episode`. Calendar endpoint `/calendars/all/shows/premieres/` is a simpler alternative.
+- Calendar endpoints (`/calendars/all/movies/`, `/calendars/all/shows/new/`) provide exact release dates without pagination — high value for events tracker.
+- `/movies/boxoffice` has US weekend revenue data, `/movies/trending` + `/shows/trending` have real-time viewer counts.
 
 ## Current Date
 

@@ -44,7 +44,7 @@ SELECT
     category,
     title,
     description,
-    popularity_score,
+    popularity_score/100.0 AS popularity_score,
     source_url
 FROM dataset
 WHERE dense_rank <= 15 OR popularity_score >= 50
