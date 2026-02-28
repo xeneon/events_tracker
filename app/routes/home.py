@@ -21,7 +21,7 @@ async def home(request: Request):
 
 @router.post("/run/{source}")
 async def run_source(source: str):
-    if source != "all" and source not in SOURCE_ALIASES:
+    if source not in ("all", "export") and source not in SOURCE_ALIASES:
         return JSONResponse({"error": f"Unknown source: {source}"}, status_code=404)
     run_id = runner.start_run(source_alias=None if source == "all" else source)
     return JSONResponse({"run_id": run_id})
