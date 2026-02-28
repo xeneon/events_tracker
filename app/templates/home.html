@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %} — Home{% endblock %}
+
+{% block content %}
+<h2>Ingester Control Panel</h2>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1rem;margin-bottom:1.5rem">
+  {% for alias, status in statuses.items() %}
+  <article style="margin:0">
+    <header style="display:flex;justify-content:space-between;align-items:center;padding:0.5rem 0.75rem">
+      <strong>{{ alias }}</strong>
+      <span style="font-size:0.75rem;padding:2px 8px;border-radius:4px;
+        {% if status.state == 'ok' %}background:#dcfce7;color:#16a34a
+        {% elif status.state == 'error' %}background:#fee2e2;color:#dc2626
+        {% elif status.state == 'running' %}background:#fef3c7;color:#d97706
+        {% else %}background:#f3f4f6;color:#6b7280{% endif %}">
+        {% if status.state == 'ok' %}OK ({{ status.count }} events)
+        {% elif status.state == 'error' %}Error
+        {% elif status.state == 'running' %}Running…
+        {% else %}Idle{% endif %}
+      </span>
+    </header>
+    <footer style="padding:0.5rem 0.75rem">
+      <button class="secondary" style="width:100%;margin:0" onclick="runSource('{{ alias }}')">
+        Run {{ alias }}
+      </button>
+    </footer>
+  </article>
+  {% endfor %}
+</div>
+
+<button onclick="runAll()" style="width:100%;margin-bottom:1.5rem">
+  Run All + Export to Sheets
+</button>
+
+<details open>
+  <summary><strong>Live Log</strong></summary>
+  <pre id="log" style="height:420px;overflow-y:auto;background:#0d1117;color:#58a6ff;font-size:0.78rem;padding:1rem;border-radius:6px;margin-top:0.5rem;white-space:pre-wrap;word-break:break-all">Ready. Click a Run button to start.</pre>
+</details>
+
+<script>
+async function runSource(source) {
+  const log = document.getElementById('log');
+  log.textContent = 'Starting ' + source + '...\n';
+  try {
+    const resp = await fetch('/run/' + source, { method: 'POST' });
+    const data = await resp.json();
+    if (data.error) { log.textContent += 'Error: ' + data.error + '\n'; return; }
+    startStream(data.run_id);
+  } catch (e) {
+    log.textContent += 'Error: ' + e + '\n';
+  }
+}
+
+async function runAll() {
+  const log = document.getElementById('log');
+  log.textContent = 'Starting all ingesters + export...\n';
+  try {
+    const resp = await fetch('/run/all', { method: 'POST' });
+    const data = await resp.json();
+    if (data.error) { log.textContent += 'Error: ' + data.error + '\n'; return; }
+    startStream(data.run_id);
+  } catch (e) {
+    log.textContent += 'Error: ' + e + '\n';
+  }
+}
+
+function startStream(runId) {
+  const log = document.getElementById('log');
+  const es = new EventSource('/stream/' + runId);
+  es.onmessage = function(event) {
+    if (event.data === '[DONE]') {
+      es.close();
+      log.textContent += '\n[Completed]\n';
+      setTimeout(() => location.reload(), 800);
+      return;
+    }
+    log.textContent += event.data + '\n';
+    log.scrollTop = log.scrollHeight;
+  };
+  es.onerror = function() {
+    es.close();
+    log.textContent += '\n[Stream closed]\n';
+  };
+}
+</script>
+{% endblock %}

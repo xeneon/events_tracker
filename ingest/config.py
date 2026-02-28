@@ -1,5 +1,6 @@
 """Standalone settings for the ingest CLI."""
 
+import os
 from pathlib import Path
 
 from pydantic_settings import BaseSettings
@@ -7,6 +8,7 @@ from pydantic_settings import BaseSettings
 # Search for .env: CWD, next to this package, then walk up to 3 levels
 _this_dir = Path(__file__).resolve().parent
 _candidates = [
+    Path(os.environ.get("CONFIG_DIR", "/config")) / ".env",  # Docker config volume
     Path.cwd() / ".env",             # current working directory
     _this_dir / ".env",              # inside the ingest/ folder
     _this_dir.parent / ".env",       # one level up (e.g. backend/)
