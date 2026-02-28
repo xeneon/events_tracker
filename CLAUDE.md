@@ -1,106 +1,91 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code when working with the Events Tracker ingestion CLI.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Overview
 
-This is a standalone CLI tool for ingesting events from multiple sources and exporting them to Google Sheets. The web UI and FastAPI backend have been removed - this repo contains only the ingestion scrapers.
+Events Tracker ingests events from multiple sources into PostgreSQL and exports them to Google Sheets. It has two interfaces:
+- **Web UI** (`app/`) — FastAPI + Jinja2, runs via Docker, provides a browser-based control panel
+- **CLI** (`ingest/`) — standalone, runs directly with `python -m ingest`
 
-## CLI Usage
+## Running with Docker (primary deployment)
 
 ```bash
-# List available ingesters
-python -m ingest --list
+docker compose build
+docker compose up -d
 
-# Run a specific ingester
-python -m ingest calendarific
-python -m ingest trakt --dry-run
-
-# Run all ingesters + export to Google Sheets
-python -m ingest --all
+# On remote Docker context
+docker --context remote-server compose build web
+docker --context remote-server compose up -d web
 ```
 
-## Package Structure
+Web UI is at `http://localhost:8080`. Postgres runs as a container on a named volume (`pg_data`). Config (API keys) persists on a named volume (`config_data` → `/config`). Schema and seed data are created automatically on first startup.
 
-All code is in the `ingest/` package:
-- `__main__.py` - CLI entry point
-- `config.py` - Settings from .env
-- `db.py` - Async SQLAlchemy connection
-- `models.py` - Database models (Category, DataSource, Event)
-- `base.py` - Base ingester class
-- `calendarific.py` - US holidays ingester
-- `trakt.py` - Movies & TV shows ingester
-- `igdb.py` - Upcoming video game releases ingester (via IGDB/Twitch)
-- `wikipedia_albums.py` - Album releases ingester (with Last.fm enrichment)
-- `export_sheets.py` - Google Sheets exporter
+**Do not run `docker compose down -v`** — this deletes both volumes (DB and config).
 
-## Database
+## CLI Usage (standalone, outside Docker)
 
-- External PostgreSQL at `192.168.1.103:5432`, database `events_tracker`
-- Schema is expected to already exist (categories, data_sources, events tables)
-- Ingesters upsert events with deduplication on `(data_source_id, external_id)`
-- All database access is async via `asyncpg`
+```bash
+python -m ingest --list
+python -m ingest calendarific
+python -m ingest trakt --dry-run
+python -m ingest --all                   # all ingesters + export
+python -m ingest.export_sheets           # export only
+python -m ingest.export_sheets --dry-run
+```
 
-## Environment Variables
+Requires `.env` at project root (or `CONFIG_DIR/.env` in Docker). `DATABASE_URL` must be set; all API keys are optional per-ingester.
 
-Required in `.env`:
-- `DATABASE_URL` - PostgreSQL connection string
-- `CALENDARIFIC_API_KEY` - For US holidays
-- `TRAKT_CLIENT_ID` - For movies/TV shows
-- `TWITCH_CLIENT_ID` - For IGDB video game releases (Twitch OAuth)
-- `TWITCH_CLIENT_SECRET` - For IGDB video game releases (Twitch OAuth)
-- `LASTFM_API_KEY` - For album release enrichment
-- `GOOGLE_SHEET_ID` - Target spreadsheet ID
-- `GOOGLE_SHEET_TAB` - Tab name (default: "Sheet1")
-- `GOOGLE_CREDENTIALS_FILE` - Path to service account JSON
+## Architecture
 
-## Package Manager
+### `ingest/` package
 
-Use `pip` for installing dependencies from `requirements.txt`.
+Self-contained ingestion library used by both the CLI and the web UI.
+
+- `config.py` — pydantic-settings `Settings` singleton. Searches for `.env` starting at `CONFIG_DIR/.env`, then CWD, then walking up. **All submodules do `from .config import settings`** — they hold a reference to the same object.
+- `db.py` — async SQLAlchemy engine and `async_session_maker`, created at import time from `DATABASE_URL`.
+- `models.py` — `Category`, `DataSource`, `Event` models. Upsert key: constraint `uq_events_source_external` on `(data_source_id, external_id)`.
+- `base.py` — `BaseIngester` ABC. `run()` calls `fetch_events()` → `normalize()` → `_apply_log_scale()` → `upsert_events()`. All ingesters take `(session, source)` as constructor args.
+- `export_sheets.py` — `fetch_rows()` returns `(headers, rows)` (column names come from query result, not hardcoded). `write_to_sheet(rows, headers)` uses those headers for the sheet header row and column count.
+
+### `app/` package
+
+FastAPI web UI layered on top of `ingest/`.
+
+- `main.py` — FastAPI app with lifespan that calls `seed.run_seed()` (idempotent `create_all` + seed categories/data_sources).
+- `seed.py` — Seeds 9 categories and 4 data sources with `ON CONFLICT DO NOTHING`.
+- `config_store.py` — Reads/writes `/config/config.json` and regenerates `/config/.env`. `EXPORT_QUERY` is stored in `config.json` only (not `.env`, because multiline SQL breaks `.env` format). Exposes `_DEFAULT_EXPORT_QUERY` (from `ingest.export_sheets.QUERY.text`).
+- `runner.py` — `start_run(source_alias)` creates an `asyncio.Queue`, launches a background task, returns a `run_id`. `_QueueHandler` attaches to root logger before each run and removes in `finally`. Runs are serialized via `asyncio.Semaphore(1)`. `stream_run(run_id)` is an async generator yielding raw SSE strings. **Settings reload**: `_reload_settings()` mutates `config_mod.settings` attributes in-place so all submodules see updated values; `DATABASE_URL` comes from the environment and is unaffected.
+- `routes/home.py` — `GET /`, `POST /run/{source}`, `GET /stream/{run_id}`.
+- `routes/config_routes.py` — `GET /config`, `POST /config`. Passes `default_query` and `is_custom_query` to template for the reset-to-default UI.
+- `templates/` — PicoCSS + vanilla JS. SSE log streaming uses `EventSource` on the client, `[DONE]` sentinel closes the stream.
+
+### Settings priority
+
+`DATABASE_URL` is set in `docker-compose.yml` environment (highest priority — never overwritten by config reload). All other keys come from `CONFIG_DIR/.env` (generated by `config_store.save_config()`).
 
 ## Popularity Scoring
 
-Two fields track popularity:
-- **`popularity_score`** (Integer) — raw metric value from the source (e.g. 6,751,421 Last.fm listeners, 1,584 IGDB Want-to-Play × 1M, 35,017 Trakt votes). Preserved as-is for transparency.
-- **`impact_level`** (SmallInteger, 0-100) — log-scaled score computed by `BaseIngester._apply_log_scale()` after normalization. Formula: `log(1+value)/log(1+max_value)*100`. Preserves magnitude differences and enables cross-category comparison (100 = category leader).
+Two fields:
+- **`popularity_score`** (Integer) — raw metric as-is: Last.fm listeners, IGDB Want-to-Play × 1M, Trakt list_count/votes.
+- **`impact_level`** (SmallInteger, 0-100) — sqrt-scaled relative to category max. Formula: `sqrt(value) / sqrt(max_value) * 100`. Computed by `BaseIngester._apply_log_scale()` after normalization.
+
+## Hardcoded Ingester Parameters
+
+- **Calendarific:** country=`US`, years = current + next
+- **Trakt:** `limit=100` for anticipated movies/shows; premiere search window = 180 days; only `returning series` with `episode_number==1 & season>1` (no series premieres)
+- **IGDB:** candidates must have `hypes > 0`; `limit=100`; PopScore type 2 (Want to Play) only
+- **Wikipedia Albums:** current year only (no next-year support); skips tables/entries with "TBA"
 
 ## Key Conventions
 
-- **Calendarific:** Deduplicates multiple entries per holiday in `fetch_events()` before normalizing. Uses `primary_type` (not `type` array) for category mapping. Region field uses state abbreviations to fit 200-char limit. No raw popularity metric (holidays have no anticipation data).
-- **Trakt:** Handles anticipated movies, TV shows, and season premieres. Raw metric: `list_count` (anticipated) / `votes` (premieres), shown in description.
-- **IGDB:** Fetches upcoming games, ranked by PopScore "Want to Play" metric (live anticipation data). Raw metric: Want to Play × 1M, `hypes` count shown in description. Auth via Twitch client credentials (fresh token per run). Category slug: `video-games`.
-- **Wikipedia Albums:** Scrapes wikitables, enriches with Last.fm. 200ms rate limit between Last.fm requests. Raw metric: Last.fm listeners, shown in description.
-- **Google Sheets export:** Runs automatically after `--all`, or standalone via `python -m ingest.export_sheets`. Preserves table formatting (filters, banding, conditional formatting). Export uses `impact_level` (log-scaled 0-100) for ranking: top 15 per category or score >= 50.
+- **Calendarific:** Deduplicates ~633 raw entries per year to ~250 using `urlid + date` key, keeping highest `DEDUP_PRIORITY` variant. Uses `primary_type` (not `type` array) for category mapping.
+- **IGDB:** Two-step fetch — first get games with `hypes > 0`, then batch-fetch Want-to-Play scores, re-sort, and attach scores. Fresh Twitch token per run.
+- **Wikipedia Albums:** `_parse_html_tables()` handles `rowspan` on date `<th>` cells. Last.fm enrichment is per unique primary artist (deduplicated), 200ms rate limit.
+- **Export query:** Custom SQL stored in `config.json`. Loaded by `export_sheets._load_custom_query()` at export time. `fetch_rows()` returns `(headers, rows)` — column names derived from `result.keys()`, not hardcoded.
 
-## Calendarific API Reference
+## API Reference Docs
 
-See `docs/calendarific-api.md` for full API documentation (3 endpoints, holiday types, deduplication notes). Key points for working with `calendarific.py`:
-
-- Auth: API key as query parameter. Rate limit: 1,000 requests/day (free plan).
-- Single endpoint: `/holidays` with `country`, `year`, optional `month`, `day`, `location`, `type` filters.
-- Returns ~633 raw entries for US/year; same holiday repeated per state grouping — ingester deduplicates to ~250.
-- `primary_type` field (not `type` array) is used for category mapping. 19 distinct values for US.
-- 230 countries supported — currently only US is ingested. No popularity metric available.
-
-## IGDB API Reference
-
-See `docs/igdb-api.md` for full API documentation (all endpoints, fields, popularity types, query syntax). Key points for working with `igdb.py`:
-
-- Auth: Twitch OAuth2 client_credentials grant. Rate limit: 4 req/sec, max 500 results.
-- Primary metric: PopScore "Want to Play" (popularity_type=2, covers all platforms).
-- Steam Wishlists (popularity_type=10) is a strong anticipation signal but **PC-only** — console exclusives will have no data. Use alongside type=2, not as replacement.
-- `/events` endpoint has gaming conventions (Summer Game Fest, etc.) with dates — potential new ingester category.
-
-## Trakt API Reference
-
-See `docs/trakt-api.md` for full API documentation (170 endpoints, filters, extended info, pagination). Key points for working with `trakt.py`:
-
-- Auth: API key only (no OAuth needed for public data). Rate limit: 1000 GET calls / 5 min.
-- Primary metric: `list_count` from `/movies/anticipated` and `/shows/anticipated` endpoints.
-- Season premieres: currently found via `/shows/favorited` + `/shows/popular` → `/shows/{id}/next_episode`. Calendar endpoint `/calendars/all/shows/premieres/` is a simpler alternative.
-- Calendar endpoints (`/calendars/all/movies/`, `/calendars/all/shows/new/`) provide exact release dates without pagination — high value for events tracker.
-- `/movies/boxoffice` has US weekend revenue data, `/movies/trending` + `/shows/trending` have real-time viewer counts.
-
-## Current Date
-
-Today's date is 2026-02-16.
+- `docs/calendarific-api.md` — endpoints, holiday types, dedup notes
+- `docs/igdb-api.md` — all endpoints, popularity types, query syntax
+- `docs/trakt-api.md` — 170 endpoints, filters, extended info, pagination

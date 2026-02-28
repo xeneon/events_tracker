@@ -82,7 +82,7 @@ class IGDBIngester(BaseIngester):
                 "url; "
                 f"where first_release_date > {today_ts} & hypes > 0; "
                 "sort hypes desc; "
-                "limit 100;"
+                f"limit {settings.igdb_limit};"
             )
 
             try:

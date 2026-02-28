@@ -34,11 +34,13 @@ class TraktIngester(BaseIngester):
         raw_events: list[dict] = []
 
         async with httpx.AsyncClient(timeout=30, headers=headers) as client:
+            anticipated_limit = settings.trakt_anticipated_limit
+
             # Fetch anticipated movies
             try:
                 resp = await client.get(
                     "https://api.trakt.tv/movies/anticipated",
-                    params={"limit": 100, "extended": "full"},
+                    params={"limit": anticipated_limit, "extended": "full"},
                 )
                 resp.raise_for_status()
                 movies = resp.json()
@@ -53,7 +55,7 @@ class TraktIngester(BaseIngester):
             try:
                 resp = await client.get(
                     "https://api.trakt.tv/shows/anticipated",
-                    params={"limit": 100, "extended": "full"},
+                    params={"limit": anticipated_limit, "extended": "full"},
                 )
                 resp.raise_for_status()
                 shows = resp.json()
@@ -68,7 +70,7 @@ class TraktIngester(BaseIngester):
             # for upcoming new seasons via /shows/{id}/next_episode
             try:
                 today_str = date.today().isoformat()
-                cutoff_str = (date.today() + timedelta(days=180)).isoformat()
+                cutoff_str = (date.today() + timedelta(days=settings.trakt_premiere_window)).isoformat()
                 shows_to_check: dict[int, dict] = {}
 
                 # Collect shows from favorited (all-time, 2 pages) and popular (current, 2 pages)
