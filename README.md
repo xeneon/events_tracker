@@ -7,7 +7,7 @@ A standalone CLI tool for ingesting events from multiple sources and exporting t
 - **Four data ingesters:**
   - **Calendarific** - US holidays via API (federal, state, observances)
   - **Trakt** - Anticipated movies and TV shows
-  - **Fashion Weeks** - Curated fashion week events
+  - **IGDB** - Upcoming video game releases ranked by anticipation
   - **Wikipedia Albums** - Music album releases with Last.fm enrichment
 
 - **Database storage:** PostgreSQL with SQLAlchemy async models
@@ -47,6 +47,8 @@ DATABASE_URL=postgresql+asyncpg://events_user:events_password@192.168.1.103:5432
 # API Keys
 CALENDARIFIC_API_KEY=your_key_here
 TRAKT_CLIENT_ID=your_client_id_here
+TWITCH_CLIENT_ID=your_twitch_client_id_here
+TWITCH_CLIENT_SECRET=your_twitch_client_secret_here
 LASTFM_API_KEY=your_key_here
 
 # Google Sheets Export
@@ -66,7 +68,7 @@ python -m ingest --list
 # Run a specific ingester
 python -m ingest calendarific
 python -m ingest trakt
-python -m ingest fashion-weeks
+python -m ingest igdb
 python -m ingest wikipedia-albums
 
 # Dry run (fetch & normalize without DB writes)
@@ -102,14 +104,14 @@ python -m ingest.export_sheets --dry-run  # Print rows without writing
 
 ### Trakt
 - Fetches top 100 anticipated movies and TV shows
-- Impact level based on ranking position (1-5)
+- Raw metric: `list_count` (anticipated) / `votes` (premieres)
 - Handles both movies and TV show premieres
 - Season premiere dates normalized from air dates
 
-### Fashion Weeks
-- Curated static data with country codes and cities
-- Major fashion weeks: New York, London, Milan, Paris
-- Manual sync recommended (monthly schedule)
+### IGDB
+- Fetches upcoming games ranked by "Want to Play" anticipation (PopScore type 2)
+- Auth via Twitch OAuth2 client credentials (fresh token per run)
+- Raw metric: Want to Play × 1M; `hypes` count shown in description
 
 ### Wikipedia Albums
 - Scrapes `List_of_{year}_albums` via MediaWiki API
@@ -118,7 +120,6 @@ python -m ingest.export_sheets --dry-run  # Print rows without writing
   - Listener counts (→ popularity_score)
   - Artist images
   - URLs
-- Impact levels based on listeners: 5M+ → 5, 1M+ → 4, 250k+ → 3, 50k+ → 2, <50k → 1
 - 200ms rate limit between Last.fm requests
 - Skips "TBA" table (caption contains "sometime")
 
@@ -127,7 +128,7 @@ python -m ingest.export_sheets --dry-run  # Print rows without writing
 The ingesters expect an existing PostgreSQL database with the following tables:
 
 - `categories` - Event categories (Federal Holiday, Movies, TV Shows, Music Releases, etc.)
-- `data_sources` - Data source configurations (Calendarific, Trakt, Fashion Weeks, Wikipedia Albums)
+- `data_sources` - Data source configurations (Calendarific, Trakt, IGDB, Wikipedia Albums)
 - `events` - Events with deduplication on `(data_source_id, external_id)`
 
 See `ingest/models.py` for the complete schema definition.
@@ -136,8 +137,8 @@ See `ingest/models.py` for the complete schema definition.
 
 Exports the following query to the configured sheet/tab:
 
-- Top 15 events per category by `popularity_score`
-- All events with `popularity_score >= 1,000,000`
+- Top 15 events per category by `impact_level` (log-scaled 0-100)
+- All events with `impact_level >= 50`
 - Date range: current month through end of 2026
 - Preserves existing table formatting (filters, banded ranges, conditional formatting)
 
