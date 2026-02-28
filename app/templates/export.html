@@ -109,6 +109,20 @@
         </div>
         {% endif %}
       </div>
+      <details class="mb-3">
+        <summary class="fw-medium" style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:0.4rem">
+          <span style="font-size:1rem;line-height:1">&#9432;</span>
+          <span style="font-size:0.875rem;color:#0d6efd">What the default query does</span>
+        </summary>
+        <div class="mt-2 p-3 rounded border" style="font-size:0.875rem;line-height:1.8;background:var(--bs-light,#f8f9fa)">
+          <ul class="mb-0" style="padding-left:1.25rem">
+            <li><strong>Date range:</strong> Events from the current month through the end of the current year.</li>
+            <li><strong>Popularity filter:</strong> Within each category, keeps the top 15 events by popularity score, plus any event with a score ≥ 50 (on a 0–100 scale).</li>
+            <li><strong>Columns exported:</strong> <code>year_month</code>, <code>start_date</code>, <code>category</code>, <code>title</code>, <code>description</code>, <code>popularity_score</code> (0–1 scale), <code>source_url</code>.</li>
+            <li><strong>Custom query:</strong> You can write any SQL that returns the columns you need — the column names become the sheet header row automatically.</li>
+          </ul>
+        </div>
+      </details>
       <p class="text-muted mb-2" style="font-size:0.875rem">Column names from the result are used as the sheet header row.</p>
       <div class="mb-4">
         <textarea id="export-query" class="form-control" name="EXPORT_QUERY" rows="22"
