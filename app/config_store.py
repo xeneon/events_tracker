@@ -4,7 +4,11 @@ import json
 import os
 from pathlib import Path
 
+from ingest.export_sheets import QUERY as _DEFAULT_QUERY_OBJ
+
 CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", "/config"))
+
+_DEFAULT_EXPORT_QUERY = _DEFAULT_QUERY_OBJ.text.strip()
 
 _CONFIG_KEYS = [
     "CALENDARIFIC_API_KEY",
@@ -21,10 +25,14 @@ def load_config() -> dict:
     """Read config.json, returning empty strings for missing keys."""
     config_path = CONFIG_DIR / "config.json"
     if not config_path.exists():
-        return {key: "" for key in _CONFIG_KEYS}
+        result = {key: "" for key in _CONFIG_KEYS}
+        result["EXPORT_QUERY"] = _DEFAULT_EXPORT_QUERY
+        return result
     with open(config_path) as f:
         data = json.load(f)
-    return {key: data.get(key, "") for key in _CONFIG_KEYS}
+    result = {key: data.get(key, "") for key in _CONFIG_KEYS}
+    result["EXPORT_QUERY"] = data.get("EXPORT_QUERY", _DEFAULT_EXPORT_QUERY) or _DEFAULT_EXPORT_QUERY
+    return result
 
 
 def save_config(data: dict, google_creds_json: str | None = None) -> None:
@@ -32,6 +40,8 @@ def save_config(data: dict, google_creds_json: str | None = None) -> None:
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
 
     config_data = {key: data.get(key, "") for key in _CONFIG_KEYS}
+    export_query = (data.get("EXPORT_QUERY") or "").strip().replace("\r\n", "\n")
+    config_data["EXPORT_QUERY"] = export_query if export_query else _DEFAULT_EXPORT_QUERY
     with open(CONFIG_DIR / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)
 

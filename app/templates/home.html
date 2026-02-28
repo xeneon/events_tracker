@@ -29,9 +29,14 @@
   {% endfor %}
 </div>
 
-<button onclick="runAll()" style="width:100%;margin-bottom:1.5rem">
-  Run All + Export to Sheets
-</button>
+<div style="display:grid;grid-template-columns:1fr auto;gap:0.75rem;margin-bottom:1.5rem">
+  <button onclick="runAll()" style="margin:0">
+    Run All + Export to Sheets
+  </button>
+  <button class="secondary" onclick="runExport()" style="margin:0;white-space:nowrap">
+    Export to Sheets
+  </button>
+</div>
 
 <details open>
   <summary><strong>Live Log</strong></summary>
@@ -44,6 +49,19 @@ async function runSource(source) {
   log.textContent = 'Starting ' + source + '...\n';
   try {
     const resp = await fetch('/run/' + source, { method: 'POST' });
+    const data = await resp.json();
+    if (data.error) { log.textContent += 'Error: ' + data.error + '\n'; return; }
+    startStream(data.run_id);
+  } catch (e) {
+    log.textContent += 'Error: ' + e + '\n';
+  }
+}
+
+async function runExport() {
+  const log = document.getElementById('log');
+  log.textContent = 'Starting export to Sheets...\n';
+  try {
+    const resp = await fetch('/run/export', { method: 'POST' });
     const data = await resp.json();
     if (data.error) { log.textContent += 'Error: ' + data.error + '\n'; return; }
     startStream(data.run_id);

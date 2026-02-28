@@ -16,6 +16,8 @@ templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent
 async def config_get(request: Request, saved: bool = False):
     config = config_store.load_config()
     has_credentials = config_store.has_google_credentials()
+    default_query = config_store._DEFAULT_EXPORT_QUERY
+    is_custom_query = config["EXPORT_QUERY"].strip().replace("\r\n", "\n") != default_query.strip()
     return templates.TemplateResponse(
         "config.html",
         {
@@ -23,6 +25,8 @@ async def config_get(request: Request, saved: bool = False):
             "config": config,
             "has_credentials": has_credentials,
             "saved": saved,
+            "default_query": default_query,
+            "is_custom_query": is_custom_query,
         },
     )
 
@@ -37,6 +41,7 @@ async def config_post(
     GOOGLE_SHEET_ID: str = Form(default=""),
     GOOGLE_SHEET_TAB: str = Form(default=""),
     google_credentials_json: str = Form(default=""),
+    EXPORT_QUERY: str = Form(default=""),
 ):
     data = {
         "CALENDARIFIC_API_KEY": CALENDARIFIC_API_KEY,
@@ -46,6 +51,7 @@ async def config_post(
         "LASTFM_API_KEY": LASTFM_API_KEY,
         "GOOGLE_SHEET_ID": GOOGLE_SHEET_ID,
         "GOOGLE_SHEET_TAB": GOOGLE_SHEET_TAB,
+        "EXPORT_QUERY": EXPORT_QUERY,
     }
     creds = google_credentials_json.strip() if google_credentials_json else None
     config_store.save_config(data, google_creds_json=creds if creds else None)

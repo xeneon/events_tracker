@@ -89,6 +89,41 @@
     </details>
   </fieldset>
 
+  <fieldset>
+    <legend>Export Query</legend>
+    <details {% if is_custom_query %}open{% endif %}>
+      <summary>
+        Edit export SQL
+        {% if is_custom_query %}
+          <span style="font-size:0.8rem;color:#d97706;background:#fef3c7;padding:2px 8px;border-radius:4px;margin-left:0.5rem">Custom query active</span>
+        {% endif %}
+      </summary>
+      <p style="font-size:0.875rem;color:#6b7280;margin:0.75rem 0">
+        SQL executed against the database when exporting to Google Sheets.
+        Column names from the query are used as the header row — any output is accepted.
+      </p>
+      {% if is_custom_query %}
+      <div style="margin-bottom:0.5rem">
+        <button type="button" class="secondary" onclick="resetQuery()"
+                style="margin:0;padding:2px 10px;font-size:0.8rem">
+          Reset to default
+        </button>
+      </div>
+      {% endif %}
+      <label>
+        <textarea id="export-query" name="EXPORT_QUERY" rows="22"
+                  style="font-family:monospace;font-size:0.78rem;width:100%">{{ config.EXPORT_QUERY }}</textarea>
+      </label>
+    </details>
+  </fieldset>
+
   <button type="submit">Save Settings</button>
 </form>
+
+<script>
+const _defaultQuery = {{ default_query | tojson }};
+function resetQuery() {
+  document.getElementById('export-query').value = _defaultQuery;
+}
+</script>
 {% endblock %}

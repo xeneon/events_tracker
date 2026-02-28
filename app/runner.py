@@ -88,6 +88,27 @@ async def _run_single(alias: str, run_id: str, queue: asyncio.Queue) -> None:
         queue.put_nowait(None)  # sentinel — signals stream end
 
 
+async def _run_export(run_id: str, queue: asyncio.Queue) -> None:
+    from ingest.export_sheets import fetch_rows, write_to_sheet
+
+    handler = _QueueHandler(queue)
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s"))
+    root_logger = logging.getLogger()
+    root_logger.addHandler(handler)
+
+    try:
+        _reload_settings()
+        headers, rows = await fetch_rows()
+        queue.put_nowait(f"Fetched {len(rows)} rows from database.")
+        count = await asyncio.to_thread(write_to_sheet, rows, headers)
+        queue.put_nowait(f"Wrote {count} rows to Google Sheet.")
+    except Exception as e:
+        queue.put_nowait(f"Export failed: {e}")
+    finally:
+        root_logger.removeHandler(handler)
+        queue.put_nowait(None)  # sentinel
+
+
 async def _run_all(run_id: str, queue: asyncio.Queue) -> None:
     from ingest.export_sheets import fetch_rows, write_to_sheet
 
@@ -126,9 +147,9 @@ async def _run_all(run_id: str, queue: asyncio.Queue) -> None:
         # Export step
         queue.put_nowait(f"\n{'='*40}\nRunning: export-sheets\n{'='*40}")
         try:
-            rows = await fetch_rows()
+            headers, rows = await fetch_rows()
             queue.put_nowait(f"Fetched {len(rows)} rows from database.")
-            count = await asyncio.to_thread(write_to_sheet, rows)
+            count = await asyncio.to_thread(write_to_sheet, rows, headers)
             queue.put_nowait(f"Wrote {count} rows to Google Sheet.")
         except Exception as e:
             queue.put_nowait(f"Export failed: {e}")
@@ -152,7 +173,9 @@ def start_run(source_alias: str | None = None) -> str:
     queue: asyncio.Queue = asyncio.Queue()
     _run_queues[run_id] = queue
 
-    if source_alias:
+    if source_alias == "export":
+        coro = _run_export(run_id, queue)
+    elif source_alias:
         _run_status[source_alias] = {"state": "running", "run_id": run_id}
         coro = _run_single(source_alias, run_id, queue)
     else:
