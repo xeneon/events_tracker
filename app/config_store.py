@@ -12,10 +12,15 @@ _DEFAULT_EXPORT_QUERY = _DEFAULT_QUERY_OBJ.text.strip()
 
 _CONFIG_KEYS = [
     "CALENDARIFIC_API_KEY",
+    "CALENDARIFIC_COUNTRIES",
     "TRAKT_CLIENT_ID",
+    "TRAKT_ANTICIPATED_LIMIT",
+    "TRAKT_PREMIERE_WINDOW",
     "TWITCH_CLIENT_ID",
     "TWITCH_CLIENT_SECRET",
+    "IGDB_LIMIT",
     "LASTFM_API_KEY",
+    "WIKIPEDIA_ALBUMS_YEAR",
     "GOOGLE_SHEET_ID",
     "GOOGLE_SHEET_TAB",
 ]
@@ -64,3 +69,19 @@ def save_config(data: dict, google_creds_json: str | None = None) -> None:
 
 def has_google_credentials() -> bool:
     return (CONFIG_DIR / "google_credentials.json").exists()
+
+
+def get_google_credentials_info() -> dict | None:
+    """Return client_email and project_id from saved credentials, or None."""
+    creds_path = CONFIG_DIR / "google_credentials.json"
+    if not creds_path.exists():
+        return None
+    try:
+        with open(creds_path) as f:
+            data = json.load(f)
+        return {
+            "client_email": data.get("client_email", ""),
+            "project_id": data.get("project_id", ""),
+        }
+    except Exception:
+        return None

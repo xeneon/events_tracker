@@ -29,7 +29,7 @@ class WikipediaAlbumsIngester(BaseIngester):
         self._lastfm_cache: dict[str, dict | None] = {}
 
     async def fetch_events(self) -> list[dict]:
-        year = date.today().year
+        year = settings.wikipedia_albums_year or date.today().year
         page_title = f"List_of_{year}_albums"
 
         async with httpx.AsyncClient(timeout=30) as client:

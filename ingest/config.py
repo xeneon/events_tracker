@@ -28,6 +28,13 @@ class Settings(BaseSettings):
     GOOGLE_SHEET_TAB: str = "Sheet1"
     GOOGLE_CREDENTIALS_FILE: str = ""
 
+    # Configurable ingester parameters
+    calendarific_countries: str = "US"       # comma-separated country codes
+    igdb_limit: int = 100
+    trakt_anticipated_limit: int = 100
+    trakt_premiere_window: int = 180         # days
+    wikipedia_albums_year: int | None = None  # None → current year
+
     model_config = {"env_file": str(_env_file), "extra": "ignore"}
 
 

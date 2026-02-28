@@ -52,48 +52,63 @@ class CalendarificIngester(BaseIngester):
             logger.error("CALENDARIFIC_API_KEY not set — skipping ingestion")
             return []
 
-        raw_events: list[dict] = []
+        countries = [c.strip() for c in settings.calendarific_countries.split(",") if c.strip()]
+        if not countries:
+            countries = ["US"]
+
         current_year = date.today().year
         years = [current_year, current_year + 1]
 
+        all_deduped: list[dict] = []
+
         async with httpx.AsyncClient(timeout=30) as client:
-            for year in years:
-                url = "https://calendarific.com/api/v2/holidays"
-                params = {
-                    "api_key": api_key,
-                    "country": "US",
-                    "year": year,
-                }
-                try:
-                    resp = await client.get(url, params=params)
-                    resp.raise_for_status()
-                    data = resp.json()
-                    holidays = data.get("response", {}).get("holidays", [])
-                    raw_events.extend(holidays)
-                except Exception as exc:
-                    logger.error(f"Calendarific fetch failed for {year}: {exc}")
-                    continue
+            for country in countries:
+                raw_events: list[dict] = []
+                for year in years:
+                    url = "https://calendarific.com/api/v2/holidays"
+                    params = {
+                        "api_key": api_key,
+                        "country": country,
+                        "year": year,
+                    }
+                    try:
+                        resp = await client.get(url, params=params)
+                        resp.raise_for_status()
+                        data = resp.json()
+                        holidays = data.get("response", {}).get("holidays", [])
+                        for h in holidays:
+                            h["_country"] = country
+                        raw_events.extend(holidays)
+                    except Exception as exc:
+                        logger.error(f"Calendarific fetch failed for {country}/{year}: {exc}")
+                        continue
 
-        # Deduplicate: the API returns the same holiday multiple times
-        # (once federal, then per-state). Keep the highest-priority entry.
-        grouped: dict[str, list[dict]] = defaultdict(list)
-        for h in raw_events:
-            urlid = h.get("urlid") or h.get("name", "unknown").lower().replace(" ", "-")
-            date_iso = h.get("date", {}).get("iso", "")[:10]
-            key = f"{urlid}_{date_iso}"
-            grouped[key].append(h)
+                # Deduplicate within this country: same holiday (by name+date) appears once.
+                # Keying by name rather than urlid merges state/region variants
+                # (e.g. rosh-hashana vs rosh-hashana-tx) into a single entry.
+                grouped: dict[str, list[dict]] = defaultdict(list)
+                for h in raw_events:
+                    name_key = h.get("name", "unknown").lower()
+                    date_iso = h.get("date", {}).get("iso", "")[:10]
+                    key = f"{name_key}_{date_iso}"
+                    grouped[key].append(h)
 
-        deduped: list[dict] = []
-        for entries in grouped.values():
-            entries.sort(
-                key=lambda x: DEDUP_PRIORITY.get(x.get("primary_type", ""), 99)
-            )
-            deduped.append(entries[0])
+                deduped: list[dict] = []
+                for entries in grouped.values():
+                    entries.sort(
+                        key=lambda x: DEDUP_PRIORITY.get(x.get("primary_type", ""), 99)
+                    )
+                    deduped.append(entries[0])
+
+                logger.info(
+                    f"Calendarific {country}: {len(raw_events)} raw → {len(deduped)} deduped"
+                )
+                all_deduped.extend(deduped)
 
         logger.info(
-            f"Calendarific: {len(raw_events)} raw entries deduped to {len(deduped)}"
+            f"Calendarific: {len(all_deduped)} total events across {len(countries)} countries"
         )
-        return deduped
+        return all_deduped
 
     def normalize(self, raw: dict) -> dict | None:
         holiday_date = raw.get("date", {}).get("iso", "")
@@ -103,6 +118,7 @@ class CalendarificIngester(BaseIngester):
 
         name = raw.get("name", "Holiday")
         urlid = raw.get("urlid") or name.lower().replace(" ", "-")
+        country = raw.get("_country", "US")
 
         primary_type = raw.get("primary_type", "")
         slug = PRIMARY_TYPE_TO_SLUG.get(primary_type, "other")
@@ -127,7 +143,7 @@ class CalendarificIngester(BaseIngester):
             "end_date": None,
             "is_all_day": True,
             "category_id": category_id,
-            "country_code": "US",
+            "country_code": country,
             "region": region,
             "source_url": raw.get("canonical_url"),
             "image_url": None,
