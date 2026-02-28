@@ -1,18 +1,14 @@
 """Per-scraper pages: run + inline log + configurable settings."""
 
 from datetime import date
-from pathlib import Path
 
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from .. import config_store, runner
+from . import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
-
-_current_year = date.today().year
 
 SCRAPER_META: dict[str, dict] = {
     "calendarific": {
@@ -78,7 +74,7 @@ SCRAPER_META: dict[str, dict] = {
     },
     "wikipedia-albums": {
         "name": "Wikipedia Albums",
-        "description": "Upcoming music releases from Wikipedia + Last.fm listener counts.",
+        "description": "Upcoming music releases from Wikipedia + Last.fm listener counts.(Slow API, due to rate limits - takes about 2-3 minutes to run)",
         "guide": {
             "title": "How to get a Last.fm API key",
             "steps": [
@@ -92,7 +88,7 @@ SCRAPER_META: dict[str, dict] = {
             {"name": "LASTFM_API_KEY", "label": "Last.fm API Key", "type": "text",
              "placeholder": "Your Last.fm API key", "hint": "Used to fetch listener counts for each artist. Without this key, popularity scores will be missing."},
             {"name": "WIKIPEDIA_ALBUMS_YEAR", "label": "Year", "type": "number",
-             "placeholder": str(_current_year), "hint": "Leave blank to use the current year."},
+             "placeholder": str(date.today().year), "hint": "Leave blank to use the current year."},
         ],
     },
 }

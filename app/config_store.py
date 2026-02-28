@@ -8,7 +8,12 @@ from ingest.export_sheets import QUERY as _DEFAULT_QUERY_OBJ
 
 CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", "/config"))
 
-_DEFAULT_EXPORT_QUERY = _DEFAULT_QUERY_OBJ.text.strip()
+DEFAULT_EXPORT_QUERY = _DEFAULT_QUERY_OBJ.text.strip()
+
+
+def is_custom_export_query(config: dict) -> bool:
+    """Return True if config's EXPORT_QUERY differs from the built-in default."""
+    return config["EXPORT_QUERY"] != DEFAULT_EXPORT_QUERY
 
 _CONFIG_KEYS = [
     "CALENDARIFIC_API_KEY",
@@ -31,12 +36,12 @@ def load_config() -> dict:
     config_path = CONFIG_DIR / "config.json"
     if not config_path.exists():
         result = {key: "" for key in _CONFIG_KEYS}
-        result["EXPORT_QUERY"] = _DEFAULT_EXPORT_QUERY
+        result["EXPORT_QUERY"] = DEFAULT_EXPORT_QUERY
         return result
     with open(config_path) as f:
         data = json.load(f)
     result = {key: data.get(key, "") for key in _CONFIG_KEYS}
-    result["EXPORT_QUERY"] = data.get("EXPORT_QUERY", _DEFAULT_EXPORT_QUERY) or _DEFAULT_EXPORT_QUERY
+    result["EXPORT_QUERY"] = data.get("EXPORT_QUERY", DEFAULT_EXPORT_QUERY) or DEFAULT_EXPORT_QUERY
     return result
 
 
@@ -46,7 +51,7 @@ def save_config(data: dict, google_creds_json: str | None = None) -> None:
 
     config_data = {key: data.get(key, "") for key in _CONFIG_KEYS}
     export_query = (data.get("EXPORT_QUERY") or "").strip().replace("\r\n", "\n")
-    config_data["EXPORT_QUERY"] = export_query if export_query else _DEFAULT_EXPORT_QUERY
+    config_data["EXPORT_QUERY"] = export_query if export_query else DEFAULT_EXPORT_QUERY
     with open(CONFIG_DIR / "config.json", "w") as f:
         json.dump(config_data, f, indent=2)
 
