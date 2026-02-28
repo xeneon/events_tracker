@@ -1,16 +1,13 @@
 """Home page: run buttons, status badges, live log panel."""
 
-from pathlib import Path
-
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.templating import Jinja2Templates
 
 from .. import runner
 from ingest.__main__ import SOURCE_ALIASES
+from . import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 
 @router.get("/")

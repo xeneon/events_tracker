@@ -1,30 +1,25 @@
 """Export page: Google Sheets credentials, SQL editor, run + log."""
 
-from pathlib import Path
-
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
-from fastapi.templating import Jinja2Templates
 
 from .. import config_store
+from . import templates
 
 router = APIRouter()
-templates = Jinja2Templates(directory=str(Path(__file__).resolve().parent.parent / "templates"))
 
 
 @router.get("/export")
 async def export_get(request: Request, saved: bool = False):
     config = config_store.load_config()
     credentials_info = config_store.get_google_credentials_info()
-    default_query = config_store._DEFAULT_EXPORT_QUERY
-    is_custom_query = config["EXPORT_QUERY"].strip().replace("\r\n", "\n") != default_query.strip()
     return templates.TemplateResponse("export.html", {
         "request": request,
         "config": config,
         "credentials_info": credentials_info,
         "saved": saved,
-        "default_query": default_query,
-        "is_custom_query": is_custom_query,
+        "default_query": config_store.DEFAULT_EXPORT_QUERY,
+        "is_custom_query": config_store.is_custom_export_query(config),
         "active_page": "export",
     })
 
