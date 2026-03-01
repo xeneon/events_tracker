@@ -164,5 +164,5 @@ class BaseIngester(ABC):
             logger.info(f"Ingested {count} events from {self.source.name}")
             return count
         except Exception as e:
-            logger.error(f"Ingestion failed for {self.source.name}: {e}")
+            logger.error(f"Ingestion failed for {self.source.name}: {e!r}", exc_info=True)
             raise

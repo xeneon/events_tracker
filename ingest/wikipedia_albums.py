@@ -32,27 +32,32 @@ class WikipediaAlbumsIngester(BaseIngester):
         year = settings.wikipedia_albums_year or date.today().year
         page_title = f"List_of_{year}_albums"
 
-        async with httpx.AsyncClient(timeout=30) as client:
-            # Fetch rendered HTML from MediaWiki API
-            resp = await client.get(WIKIPEDIA_API, params={
-                "action": "parse",
-                "page": page_title,
-                "prop": "text",
-                "format": "json",
-            }, headers={"User-Agent": "EventsTracker/1.0 (album ingester)"})
-            resp.raise_for_status()
-            data = resp.json()
+        # Wikipedia renders full-page HTML — use a longer timeout than Last.fm calls
+        async with httpx.AsyncClient(timeout=60) as wiki_client:
+            try:
+                resp = await wiki_client.get(WIKIPEDIA_API, params={
+                    "action": "parse",
+                    "page": page_title,
+                    "prop": "text",
+                    "format": "json",
+                }, headers={"User-Agent": "EventsTracker/1.0 (album ingester)"})
+                resp.raise_for_status()
+                data = resp.json()
+            except Exception as exc:
+                logger.error(f"Wikipedia API request failed: {exc!r}")
+                raise
 
-            if "error" in data:
-                logger.error(f"Wikipedia API error: {data['error']}")
-                return []
+        if "error" in data:
+            logger.error(f"Wikipedia API error: {data['error']}")
+            return []
 
-            html = data["parse"]["text"]["*"]
-            albums = self._parse_html_tables(html, year)
-            logger.info(f"Wikipedia: parsed {len(albums)} albums from {page_title}")
+        html = data["parse"]["text"]["*"]
+        albums = self._parse_html_tables(html, year)
+        logger.info(f"Wikipedia: parsed {len(albums)} albums from {page_title}")
 
-            # Enrich with Last.fm data
-            await self._enrich_with_lastfm(client, albums)
+        # Use a separate client for Last.fm with a shorter timeout
+        async with httpx.AsyncClient(timeout=30) as lastfm_client:
+            await self._enrich_with_lastfm(lastfm_client, albums)
 
         return albums
 
