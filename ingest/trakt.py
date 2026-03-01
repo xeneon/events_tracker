@@ -46,8 +46,32 @@ class TraktIngester(BaseIngester):
                 movies = resp.json()
                 for item in movies:
                     item["_type"] = "movie"
+
+                # Fetch US theatrical release dates (overrides global `released` field)
+                sem = asyncio.Semaphore(20)
+
+                async def _fetch_us_date(item: dict) -> None:
+                    trakt_id = item.get("movie", {}).get("ids", {}).get("trakt")
+                    if not trakt_id:
+                        return
+                    async with sem:
+                        try:
+                            r = await client.get(
+                                f"https://api.trakt.tv/movies/{trakt_id}/releases/us"
+                            )
+                            if r.status_code != 200:
+                                return
+                            for rel in r.json():
+                                if rel.get("release_type") == "theatrical" and rel.get("release_date"):
+                                    item["_us_release_date"] = rel["release_date"][:10]
+                                    return
+                        except Exception:
+                            pass
+
+                await asyncio.gather(*[_fetch_us_date(m) for m in movies])
+                us_count = sum(1 for m in movies if "_us_release_date" in m)
+                logger.info(f"Trakt: fetched {len(movies)} anticipated movies ({us_count} with US theatrical dates)")
                 raw_events.extend(movies)
-                logger.info(f"Trakt: fetched {len(movies)} anticipated movies")
             except Exception as exc:
                 logger.error(f"Trakt movies fetch failed: {exc}")
 
@@ -135,9 +159,9 @@ class TraktIngester(BaseIngester):
         if not content:
             return None
 
-        # Get release date
+        # Get release date (US theatrical date takes priority for movies)
         if item_type == "movie":
-            release_date_str = content.get("released")
+            release_date_str = raw.get("_us_release_date") or content.get("released")
         else:
             release_date_str = content.get("first_aired")
 
