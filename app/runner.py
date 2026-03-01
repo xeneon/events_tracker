@@ -5,6 +5,7 @@ import logging
 import os
 import uuid
 from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -18,47 +19,65 @@ from sqlalchemy import select
 _CONFIG_DIR = Path(os.environ.get("CONFIG_DIR", "/config"))
 _ENV_FILE = str(_CONFIG_DIR / ".env")
 
+logger = logging.getLogger(__name__)
+
 # Serialize runs so log output doesn't interleave
 _semaphore = asyncio.Semaphore(1)
 
 # In-memory state keyed by source alias
 _run_status: dict[str, dict] = {}
-# Queues keyed by run_id
-_run_queues: dict[str, asyncio.Queue] = {}
+
+
+@dataclass
+class _RunInfo:
+    log_buffer: list[str] = field(default_factory=list)
+    subscribers: list[asyncio.Queue] = field(default_factory=list)
+    done: bool = False
+
+
+# Run state keyed by run_id — replaces _run_queues
+_run_infos: dict[str, _RunInfo] = {}
 
 
 class _QueueHandler(logging.Handler):
-    """Logging handler that puts formatted records into an asyncio.Queue."""
+    """Logging handler that buffers and broadcasts formatted records to all subscribers."""
 
-    def __init__(self, queue: asyncio.Queue):
+    def __init__(self, run_id: str):
         super().__init__()
-        self._queue = queue
+        self._run_id = run_id
 
     def emit(self, record: logging.LogRecord) -> None:
         try:
-            self._queue.put_nowait(self.format(record))
+            msg = self.format(record)
+            info = _run_infos.get(self._run_id)
+            if info is None:
+                return
+            info.log_buffer.append(msg)
+            for sub in info.subscribers:
+                sub.put_nowait(msg)
         except Exception:
             self.handleError(record)
 
 
 def get_all_statuses() -> dict[str, dict]:
-    return {alias: _run_status.get(alias, {"state": "idle"}) for alias in SOURCE_ALIASES}
+    aliases = list(SOURCE_ALIASES) + ["export"]
+    return {alias: _run_status.get(alias, {"state": "idle"}) for alias in aliases}
 
 
 def _reload_settings() -> None:
     """Mutate the existing settings singleton in-place from the config .env file."""
     try:
         new = Settings(_env_file=_ENV_FILE)
-        for field in Settings.model_fields:
-            setattr(config_mod.settings, field, getattr(new, field))
+        for field_name in Settings.model_fields:
+            setattr(config_mod.settings, field_name, getattr(new, field_name))
     except Exception:
         pass  # Keep existing settings if reload fails
 
 
 @asynccontextmanager
-async def _log_to_queue(queue: asyncio.Queue):
-    """Attach a queue-backed log handler and send the None sentinel on exit."""
-    handler = _QueueHandler(queue)
+async def _log_to_run(run_id: str):
+    """Attach a run-backed log handler and signal done on exit."""
+    handler = _QueueHandler(run_id)
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s"))
     root_logger = logging.getLogger()
     root_logger.addHandler(handler)
@@ -66,24 +85,28 @@ async def _log_to_queue(queue: asyncio.Queue):
         yield
     finally:
         root_logger.removeHandler(handler)
-        queue.put_nowait(None)  # sentinel — signals stream end
+        info = _run_infos.get(run_id)
+        if info is not None:
+            info.done = True
+            for sub in info.subscribers:
+                sub.put_nowait(None)  # sentinel — signals stream end
 
 
-async def _do_export(queue: asyncio.Queue) -> None:
-    """Fetch rows and write to Google Sheet, putting progress messages on queue."""
+async def _do_export(export_query: str | None = None) -> None:
+    """Fetch rows and write to Google Sheet, logging progress."""
     from ingest.export_sheets import fetch_rows, write_to_sheet
 
-    headers, rows = await fetch_rows()
-    queue.put_nowait(f"Fetched {len(rows)} rows from database.")
+    headers, rows = await fetch_rows(inline_query=export_query)
+    logger.info(f"Fetched {len(rows)} rows from database.")
     count = await asyncio.to_thread(write_to_sheet, rows, headers)
-    queue.put_nowait(f"Wrote {count} rows to Google Sheet.")
+    logger.info(f"Wrote {count} rows to Google Sheet.")
 
 
-async def _run_single(alias: str, run_id: str, queue: asyncio.Queue) -> None:
+async def _run_single(alias: str, run_id: str) -> None:
     source_name = SOURCE_ALIASES[alias]
     ingester_cls = INGESTERS[source_name]
 
-    async with _log_to_queue(queue):
+    async with _log_to_run(run_id):
         try:
             _reload_settings()
             async with async_session_maker() as session:
@@ -92,7 +115,7 @@ async def _run_single(alias: str, run_id: str, queue: asyncio.Queue) -> None:
                 )
                 source = result.scalar_one_or_none()
                 if not source:
-                    queue.put_nowait(f"ERROR: DataSource '{source_name}' not found in database.")
+                    logger.error(f"DataSource '{source_name}' not found in database.")
                     _run_status[alias] = {"state": "error", "message": "DataSource not found"}
                     return
 
@@ -100,28 +123,30 @@ async def _run_single(alias: str, run_id: str, queue: asyncio.Queue) -> None:
                 count = await ingester.run()
 
             _run_status[alias] = {"state": "ok", "count": count}
-            queue.put_nowait(f"Done: {count} events from {source_name}.")
+            logger.info(f"Done: {count} events from {source_name}.")
         except Exception as e:
             _run_status[alias] = {"state": "error", "message": str(e)}
-            queue.put_nowait(f"ERROR: {e}")
+            logger.error(f"ERROR: {e}")
 
 
-async def _run_export(run_id: str, queue: asyncio.Queue) -> None:
-    async with _log_to_queue(queue):
+async def _run_export(run_id: str, export_query: str | None = None) -> None:
+    async with _log_to_run(run_id):
         try:
             _reload_settings()
-            await _do_export(queue)
+            await _do_export(export_query=export_query)
+            _run_status["export"] = {"state": "ok", "count": 0}
         except Exception as e:
-            queue.put_nowait(f"Export failed: {e}")
+            _run_status["export"] = {"state": "error", "message": str(e)}
+            logger.error(f"Export failed: {e}")
 
 
-async def _run_all(run_id: str, queue: asyncio.Queue) -> None:
-    async with _log_to_queue(queue):
+async def _run_all(run_id: str) -> None:
+    async with _log_to_run(run_id):
         _reload_settings()
         for alias, source_name in SOURCE_ALIASES.items():
             ingester_cls = INGESTERS[source_name]
             _run_status[alias] = {"state": "running", "run_id": run_id}
-            queue.put_nowait(f"\n{'='*40}\nRunning: {alias}\n{'='*40}")
+            logger.info(f"\n{'='*40}\nRunning: {alias}\n{'='*40}")
 
             try:
                 async with async_session_maker() as session:
@@ -130,7 +155,7 @@ async def _run_all(run_id: str, queue: asyncio.Queue) -> None:
                     )
                     source = result.scalar_one_or_none()
                     if not source:
-                        queue.put_nowait(f"ERROR: DataSource '{source_name}' not found.")
+                        logger.error(f"DataSource '{source_name}' not found.")
                         _run_status[alias] = {"state": "error", "message": "DataSource not found"}
                         continue
 
@@ -138,17 +163,19 @@ async def _run_all(run_id: str, queue: asyncio.Queue) -> None:
                     count = await ingester.run()
 
                 _run_status[alias] = {"state": "ok", "count": count}
-                queue.put_nowait(f"Done: {count} events from {source_name}.")
+                logger.info(f"Done: {count} events from {source_name}.")
             except Exception as e:
                 _run_status[alias] = {"state": "error", "message": str(e)}
-                queue.put_nowait(f"ERROR in {alias}: {e}")
+                logger.error(f"ERROR in {alias}: {e}")
 
         # Export step
-        queue.put_nowait(f"\n{'='*40}\nRunning: export-sheets\n{'='*40}")
+        logger.info(f"\n{'='*40}\nRunning: export-sheets\n{'='*40}")
         try:
-            await _do_export(queue)
+            await _do_export()
+            _run_status["export"] = {"state": "ok", "count": 0}
         except Exception as e:
-            queue.put_nowait(f"Export failed: {e}")
+            _run_status["export"] = {"state": "error", "message": str(e)}
+            logger.error(f"Export failed: {e}")
 
 
 async def _run_with_semaphore(coro) -> None:
@@ -160,21 +187,24 @@ async def _run_with_semaphore(coro) -> None:
         raise
 
 
-def start_run(source_alias: str | None = None) -> str:
-    """Create a queue, launch the background task, return run_id."""
+def start_run(source_alias: str | None = None, export_query: str | None = None) -> str:
+    """Create a RunInfo, launch the background task, return run_id."""
     run_id = str(uuid.uuid4())
-    queue: asyncio.Queue = asyncio.Queue()
-    _run_queues[run_id] = queue
+    _run_infos[run_id] = _RunInfo()
+    while len(_run_infos) > 20:
+        _run_infos.pop(next(iter(_run_infos)))
 
     if source_alias == "export":
-        coro = _run_export(run_id, queue)
+        _run_status["export"] = {"state": "running", "run_id": run_id}
+        coro = _run_export(run_id, export_query=export_query)
     elif source_alias:
         _run_status[source_alias] = {"state": "running", "run_id": run_id}
-        coro = _run_single(source_alias, run_id, queue)
+        coro = _run_single(source_alias, run_id)
     else:
         for alias in SOURCE_ALIASES:
             _run_status[alias] = {"state": "running", "run_id": run_id}
-        coro = _run_all(run_id, queue)
+        _run_status["export"] = {"state": "running", "run_id": run_id}
+        coro = _run_all(run_id)
 
     asyncio.create_task(_run_with_semaphore(coro))
     return run_id
@@ -182,21 +212,41 @@ def start_run(source_alias: str | None = None) -> str:
 
 async def stream_run(run_id: str) -> AsyncGenerator[str, None]:
     """Async generator yielding SSE-formatted strings for a given run."""
-    queue = _run_queues.get(run_id)
-    if not queue:
+    info = _run_infos.get(run_id)
+    if info is None:
         yield "data: Run not found\n\n"
         return
 
+    # Subscribe and snapshot atomically (no await between)
+    sub_queue: asyncio.Queue = asyncio.Queue()
+    info.subscribers.append(sub_queue)
+    buffered = list(info.log_buffer)
+    already_done = info.done
+
     try:
+        # Replay buffered messages
+        for msg in buffered:
+            lines = msg.splitlines() if msg else [""]
+            for line in lines:
+                yield f"data: {line}\n"
+            yield "\n"
+
+        if already_done:
+            yield "data: [DONE]\n\n"
+            return
+
+        # Stream new messages until sentinel
         while True:
-            msg = await queue.get()
+            msg = await sub_queue.get()
             if msg is None:
                 yield "data: [DONE]\n\n"
                 break
-            # Each line of a multi-line message gets its own data: prefix
             lines = msg.splitlines() if msg else [""]
             for line in lines:
                 yield f"data: {line}\n"
             yield "\n"
     finally:
-        _run_queues.pop(run_id, None)
+        try:
+            info.subscribers.remove(sub_queue)
+        except ValueError:
+            pass

@@ -66,6 +66,15 @@
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', async function() {
+  const data = await fetch('/api/status').then(r => r.json());
+  const s = data['{{ alias }}'];
+  if (s && s.state === 'running' && s.run_id) {
+    document.getElementById('log').textContent = '[Reconnecting to running job...]\n';
+    document.getElementById('run-btn').disabled = true;
+    startStream(s.run_id);
+  }
+});
 function refreshBadge() {
   fetch('/api/status').then(r => r.json()).then(statuses => {
     const s = statuses['{{ alias }}'];
