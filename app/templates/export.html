@@ -135,6 +135,15 @@
 </div>
 
 <script>
+document.addEventListener('DOMContentLoaded', async function() {
+  const data = await fetch('/api/status').then(r => r.json());
+  const s = data['export'];
+  if (s && s.state === 'running' && s.run_id) {
+    document.getElementById('log').textContent = '[Reconnecting to running export...]\n';
+    document.getElementById('export-btn').disabled = true;
+    startStream(s.run_id);
+  }
+});
 const _defaultQuery = {{ default_query | tojson }};
 function resetQuery() { document.getElementById('export-query').value = _defaultQuery; }
 
@@ -178,7 +187,12 @@ async function runExport() {
   log.textContent = 'Starting export...\n';
   btn.disabled = true;
   try {
-    const r = await fetch('/run/export', { method: 'POST' });
+    const query = document.getElementById('export-query').value;
+    const r = await fetch('/run/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ EXPORT_QUERY: query }),
+    });
     const d = await r.json();
     if (d.error) { log.textContent += 'Error: ' + d.error + '\n'; btn.disabled = false; return; }
     startStream(d.run_id);

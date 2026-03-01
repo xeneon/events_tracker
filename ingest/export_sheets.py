@@ -53,19 +53,9 @@ WHERE dense_rank <= 15 OR popularity_score >= 50
 ORDER BY start_date, category, popularity_score desc
 """)
 
-HEADERS = [
-    "year_month",
-    "start_date",
-    "category",
-    "title",
-    "description",
-    "popularity_score",
-    "source_url",
-]
 
-
-def _load_custom_query() -> str | None:
-    """Return custom SQL from /config/config.json if set, else None."""
+def _load_saved_query() -> str | None:
+    """Return saved SQL from /config/config.json if set, else None."""
     config_path = Path(os.environ.get("CONFIG_DIR", "/config")) / "config.json"
     if not config_path.exists():
         return None
@@ -78,9 +68,9 @@ def _load_custom_query() -> str | None:
         return None
 
 
-async def fetch_rows() -> tuple[list[str], list[list]]:
+async def fetch_rows(inline_query: str | None = None) -> tuple[list[str], list[list]]:
     """Run the query and return (column_names, rows)."""
-    custom_q = _load_custom_query()
+    custom_q = inline_query or _load_saved_query()
     query = text(custom_q) if custom_q else QUERY
     async with async_session_maker() as session:
         result = await session.execute(query)
@@ -183,7 +173,7 @@ def _resize_table_and_filter(gc, spreadsheet_id: str, sheet_id: int, total_rows:
     batch([{"setBasicFilter": {"filter": {"range": new_range}}}])
 
 
-def write_to_sheet(rows: list[list], headers: list[str] | None = None) -> int:
+def write_to_sheet(rows: list[list], headers: list[str]) -> int:
     """Write rows to the configured Google Sheet tab, preserving formatting."""
     creds_path = _resolve_credentials_path()
     scopes = [
@@ -206,10 +196,9 @@ def write_to_sheet(rows: list[list], headers: list[str] | None = None) -> int:
     worksheet.clear()
 
     # Write header + data
-    effective_headers = headers if headers is not None else HEADERS
-    all_rows = [effective_headers] + rows
+    all_rows = [headers] + rows
     total_rows = len(all_rows)
-    num_cols = len(effective_headers)
+    num_cols = len(headers)
     worksheet.update(range_name="A1", values=all_rows)
 
     # Resize table, filter, and banded ranges to match new row count

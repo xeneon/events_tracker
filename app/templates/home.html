@@ -14,7 +14,7 @@
 </div>
 
 <div class="row g-3 mb-4">
-  {% for alias, status in statuses.items() %}
+  {% for alias, status in statuses.items() if alias != 'export' %}
   <div class="col-sm-6 col-xl-3">
     <div class="card h-100">
       <div class="card-body">
@@ -94,6 +94,17 @@ async function runAll() {
     startStream(d.run_id);
   } catch (e) { log.textContent += 'Error: ' + e + '\n'; }
 }
+document.addEventListener('DOMContentLoaded', async function() {
+  const data = await fetch('/api/status').then(r => r.json());
+  for (const [alias, s] of Object.entries(data)) {
+    if (s.state === 'running' && s.run_id) {
+      const log = document.getElementById('log');
+      log.textContent = '[Reconnecting to running job: ' + alias + '...]\n';
+      startStream(s.run_id);
+      return;
+    }
+  }
+});
 function startStream(runId) {
   const log = document.getElementById('log');
   const es = new EventSource('/stream/' + runId);
