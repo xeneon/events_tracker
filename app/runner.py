@@ -125,8 +125,8 @@ async def _run_single(alias: str, run_id: str) -> None:
             _run_status[alias] = {"state": "ok", "count": count}
             logger.info(f"Done: {count} events from {source_name}.")
         except Exception as e:
-            _run_status[alias] = {"state": "error", "message": str(e)}
-            logger.error(f"ERROR: {e}")
+            _run_status[alias] = {"state": "error", "message": repr(e)}
+            logger.error(f"ERROR: {e!r}", exc_info=True)
 
 
 async def _run_export(run_id: str, export_query: str | None = None) -> None:
@@ -165,8 +165,8 @@ async def _run_all(run_id: str) -> None:
                 _run_status[alias] = {"state": "ok", "count": count}
                 logger.info(f"Done: {count} events from {source_name}.")
             except Exception as e:
-                _run_status[alias] = {"state": "error", "message": str(e)}
-                logger.error(f"ERROR in {alias}: {e}")
+                _run_status[alias] = {"state": "error", "message": repr(e)}
+                logger.error(f"ERROR in {alias}: {e!r}", exc_info=True)
 
         # Export step
         logger.info(f"\n{'='*40}\nRunning: export-sheets\n{'='*40}")
