@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: events_tracker
+      POSTGRES_USER: events
+      POSTGRES_PASSWORD: events
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U events -d events_tracker"]
+      interval: 5s
+      retries: 10
+
+  web:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - config_data:/config
+    environment:
+      DATABASE_URL: postgresql+asyncpg://events:events@postgres:5432/events_tracker
+      CONFIG_DIR: /config
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pg_data:
+  config_data:

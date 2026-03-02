@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %} — Home{% endblock %}
+
+{% block content %}
+<div class="d-flex align-items-center justify-content-between mb-4">
+  <div>
+    <h3 class="mb-1">Dashboard</h3>
+    <p class="text-muted mb-0">Run scrapers individually or all at once, then export to Google Sheets.</p>
+  </div>
+  <div class="d-flex gap-2">
+    <button class="btn btn-outline-secondary" onclick="runExport()">Export to Sheets</button>
+    <button class="btn btn-primary" onclick="runAll()">Run All + Export</button>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  {% for alias, status in statuses.items() if alias != 'export' %}
+  <div class="col-sm-6 col-xl-3">
+    <div class="card h-100">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <a href="/scraper/{{ alias }}" class="fw-semibold text-decoration-none text-dark">{{ alias }}</a>
+          <span data-badge="{{ alias }}" class="badge rounded-pill
+            {% if status.state == 'ok' %}bg-success
+            {% elif status.state == 'error' %}bg-danger
+            {% elif status.state == 'running' %}bg-warning text-dark
+            {% else %}bg-secondary{% endif %}">
+            {% if status.state == 'ok' %}{{ status.count }} events
+            {% elif status.state == 'error' %}Error
+            {% elif status.state == 'running' %}Running…
+            {% else %}Idle{% endif %}
+          </span>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm w-100" onclick="runSource('{{ alias }}')">Run</button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between">
+    <span class="fw-semibold">Live Log</span>
+    <button class="btn btn-outline-secondary btn-sm" onclick="clearLog()">Clear</button>
+  </div>
+  <pre class="log-pre" id="log">Ready. Click a Run button to start.</pre>
+</div>
+
+<script>
+function badgeClass(state) {
+  return state === 'ok' ? 'bg-success' : state === 'error' ? 'bg-danger' : state === 'running' ? 'bg-warning text-dark' : 'bg-secondary';
+}
+function badgeText(s) {
+  return s.state === 'ok' ? s.count + ' events' : s.state === 'error' ? 'Error' : s.state === 'running' ? 'Running…' : 'Idle';
+}
+function refreshBadges() {
+  fetch('/api/status').then(r => r.json()).then(statuses => {
+    for (const [alias, s] of Object.entries(statuses)) {
+      const el = document.querySelector('[data-badge="' + alias + '"]');
+      if (!el) continue;
+      el.className = 'badge rounded-pill ' + badgeClass(s.state);
+      el.textContent = badgeText(s);
+    }
+  });
+}
+function clearLog() { document.getElementById('log').textContent = ''; }
+async function runSource(source) {
+  const log = document.getElementById('log');
+  log.textContent = 'Starting ' + source + '...\n';
+  try {
+    const r = await fetch('/run/' + source, { method: 'POST' });
+    const d = await r.json();
+    if (d.error) { log.textContent += 'Error: ' + d.error + '\n'; return; }
+    startStream(d.run_id);
+  } catch (e) { log.textContent += 'Error: ' + e + '\n'; }
+}
+async function runExport() {
+  const log = document.getElementById('log');
+  log.textContent = 'Starting export...\n';
+  try {
+    const r = await fetch('/run/export', { method: 'POST' });
+    const d = await r.json();
+    if (d.error) { log.textContent += 'Error: ' + d.error + '\n'; return; }
+    startStream(d.run_id);
+  } catch (e) { log.textContent += 'Error: ' + e + '\n'; }
+}
+async function runAll() {
+  const log = document.getElementById('log');
+  log.textContent = 'Starting all ingesters + export...\n';
+  try {
+    const r = await fetch('/run/all', { method: 'POST' });
+    const d = await r.json();
+    if (d.error) { log.textContent += 'Error: ' + d.error + '\n'; return; }
+    startStream(d.run_id);
+  } catch (e) { log.textContent += 'Error: ' + e + '\n'; }
+}
+document.addEventListener('DOMContentLoaded', async function() {
+  const data = await fetch('/api/status').then(r => r.json());
+  for (const [alias, s] of Object.entries(data)) {
+    if (s.state === 'running' && s.run_id) {
+      const log = document.getElementById('log');
+      log.textContent = '[Reconnecting to running job: ' + alias + '...]\n';
+      startStream(s.run_id);
+      return;
+    }
+  }
+});
+function startStream(runId) {
+  const log = document.getElementById('log');
+  const es = new EventSource('/stream/' + runId);
+  es.onmessage = function(e) {
+    if (e.data === '[DONE]') { es.close(); log.textContent += '\n[Completed]\n'; refreshBadges(); return; }
+    log.textContent += e.data + '\n';
+    log.scrollTop = log.scrollHeight;
+  };
+  es.onerror = function() { es.close(); log.textContent += '\n[Stream closed]\n'; };
+}
+</script>
+{% endblock %}

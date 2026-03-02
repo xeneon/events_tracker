@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% block title %} — Config{% endblock %}
+
+{% block content %}
+<h2>API Configuration</h2>
+
+{% if saved %}
+<div role="alert" style="background:#dcfce7;color:#16a34a;padding:0.75rem 1rem;border-radius:6px;margin-bottom:1rem;border:1px solid #bbf7d0">
+  Settings saved successfully.
+</div>
+{% endif %}
+
+<form method="post" action="/config">
+  <fieldset>
+    <legend>API Keys</legend>
+
+    <label>
+      CALENDARIFIC_API_KEY
+      <input type="text" name="CALENDARIFIC_API_KEY"
+             value="{{ config.CALENDARIFIC_API_KEY }}"
+             placeholder="Your Calendarific API key">
+    </label>
+
+    <label>
+      TRAKT_CLIENT_ID
+      <input type="text" name="TRAKT_CLIENT_ID"
+             value="{{ config.TRAKT_CLIENT_ID }}"
+             placeholder="Your Trakt client ID">
+    </label>
+
+    <label>
+      TWITCH_CLIENT_ID
+      <input type="text" name="TWITCH_CLIENT_ID"
+             value="{{ config.TWITCH_CLIENT_ID }}"
+             placeholder="Your Twitch client ID (for IGDB)">
+    </label>
+
+    <label>
+      TWITCH_CLIENT_SECRET
+      <input type="password" name="TWITCH_CLIENT_SECRET"
+             value="{{ config.TWITCH_CLIENT_SECRET }}"
+             placeholder="Your Twitch client secret">
+    </label>
+
+    <label>
+      LASTFM_API_KEY
+      <input type="text" name="LASTFM_API_KEY"
+             value="{{ config.LASTFM_API_KEY }}"
+             placeholder="Your Last.fm API key">
+    </label>
+  </fieldset>
+
+  <fieldset>
+    <legend>Google Sheets</legend>
+
+    <label>
+      GOOGLE_SHEET_ID
+      <input type="text" name="GOOGLE_SHEET_ID"
+             value="{{ config.GOOGLE_SHEET_ID }}"
+             placeholder="Sheet ID from the Google Sheets URL">
+    </label>
+
+    <label>
+      GOOGLE_SHEET_TAB
+      <input type="text" name="GOOGLE_SHEET_TAB"
+             value="{{ config.GOOGLE_SHEET_TAB or 'Sheet1' }}"
+             placeholder="Sheet1">
+    </label>
+
+    <div style="margin-bottom:1rem">
+      <strong>Google Service Account Credentials:</strong>
+      {% if has_credentials %}
+        <span style="color:#16a34a;margin-left:0.75rem">&#10003; Saved</span>
+      {% else %}
+        <span style="color:#6b7280;margin-left:0.75rem">Not yet configured</span>
+      {% endif %}
+    </div>
+
+    <details>
+      <summary>
+        Paste Google Service Account JSON
+        {% if has_credentials %}(leave empty to keep existing credentials){% endif %}
+      </summary>
+      <label style="margin-top:0.5rem;display:block">
+        <textarea name="google_credentials_json" rows="10"
+                  style="font-family:monospace;font-size:0.78rem;width:100%"
+                  placeholder='{"type": "service_account", "project_id": "...", ...}'></textarea>
+      </label>
+    </details>
+  </fieldset>
+
+  <fieldset>
+    <legend>Export Query</legend>
+    <details {% if is_custom_query %}open{% endif %}>
+      <summary>
+        Edit export SQL
+        {% if is_custom_query %}
+          <span style="font-size:0.8rem;color:#d97706;background:#fef3c7;padding:2px 8px;border-radius:4px;margin-left:0.5rem">Custom query active</span>
+        {% endif %}
+      </summary>
+      <p style="font-size:0.875rem;color:#6b7280;margin:0.75rem 0">
+        SQL executed against the database when exporting to Google Sheets.
+        Column names from the query are used as the header row — any output is accepted.
+      </p>
+      {% if is_custom_query %}
+      <div style="margin-bottom:0.5rem">
+        <button type="button" class="secondary" onclick="resetQuery()"
+                style="margin:0;padding:2px 10px;font-size:0.8rem">
+          Reset to default
+        </button>
+      </div>
+      {% endif %}
+      <label>
+        <textarea id="export-query" name="EXPORT_QUERY" rows="22"
+                  style="font-family:monospace;font-size:0.78rem;width:100%">{{ config.EXPORT_QUERY }}</textarea>
+      </label>
+    </details>
+  </fieldset>
+
+  <button type="submit">Save Settings</button>
+</form>
+
+<script>
+const _defaultQuery = {{ default_query | tojson }};
+function resetQuery() {
+  document.getElementById('export-query').value = _defaultQuery;
+}
+</script>
+{% endblock %}
