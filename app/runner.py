@@ -70,8 +70,8 @@ def _reload_settings() -> None:
         new = Settings(_env_file=_ENV_FILE)
         for field_name in Settings.model_fields:
             setattr(config_mod.settings, field_name, getattr(new, field_name))
-    except Exception:
-        pass  # Keep existing settings if reload fails
+    except Exception as e:
+        logger.warning(f"Settings reload failed: {e}")
 
 
 @asynccontextmanager
@@ -102,31 +102,35 @@ async def _do_export(export_query: str | None = None) -> None:
     logger.info(f"Wrote {count} rows to Google Sheet.")
 
 
-async def _run_single(alias: str, run_id: str) -> None:
+async def _run_one_ingester(alias: str) -> None:
+    """Fetch, normalize, and upsert events for a single ingester alias; update _run_status."""
     source_name = SOURCE_ALIASES[alias]
     ingester_cls = INGESTERS[source_name]
+    try:
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(DataSource).where(DataSource.name == source_name)
+            )
+            source = result.scalar_one_or_none()
+            if not source:
+                logger.error(f"DataSource '{source_name}' not found in database.")
+                _run_status[alias] = {"state": "error", "message": "DataSource not found"}
+                return
 
+            ingester = ingester_cls(session, source)
+            count = await ingester.run()
+
+        _run_status[alias] = {"state": "ok", "count": count}
+        logger.info(f"Done: {count} events from {source_name}.")
+    except Exception as e:
+        _run_status[alias] = {"state": "error", "message": str(e)}
+        logger.error(f"ERROR in {alias}: {e!r}", exc_info=True)
+
+
+async def _run_single(alias: str, run_id: str) -> None:
     async with _log_to_run(run_id):
-        try:
-            _reload_settings()
-            async with async_session_maker() as session:
-                result = await session.execute(
-                    select(DataSource).where(DataSource.name == source_name)
-                )
-                source = result.scalar_one_or_none()
-                if not source:
-                    logger.error(f"DataSource '{source_name}' not found in database.")
-                    _run_status[alias] = {"state": "error", "message": "DataSource not found"}
-                    return
-
-                ingester = ingester_cls(session, source)
-                count = await ingester.run()
-
-            _run_status[alias] = {"state": "ok", "count": count}
-            logger.info(f"Done: {count} events from {source_name}.")
-        except Exception as e:
-            _run_status[alias] = {"state": "error", "message": repr(e)}
-            logger.error(f"ERROR: {e!r}", exc_info=True)
+        _reload_settings()
+        await _run_one_ingester(alias)
 
 
 async def _run_export(run_id: str, export_query: str | None = None) -> None:
@@ -143,30 +147,10 @@ async def _run_export(run_id: str, export_query: str | None = None) -> None:
 async def _run_all(run_id: str) -> None:
     async with _log_to_run(run_id):
         _reload_settings()
-        for alias, source_name in SOURCE_ALIASES.items():
-            ingester_cls = INGESTERS[source_name]
+        for alias in SOURCE_ALIASES:
             _run_status[alias] = {"state": "running", "run_id": run_id}
             logger.info(f"\n{'='*40}\nRunning: {alias}\n{'='*40}")
-
-            try:
-                async with async_session_maker() as session:
-                    result = await session.execute(
-                        select(DataSource).where(DataSource.name == source_name)
-                    )
-                    source = result.scalar_one_or_none()
-                    if not source:
-                        logger.error(f"DataSource '{source_name}' not found.")
-                        _run_status[alias] = {"state": "error", "message": "DataSource not found"}
-                        continue
-
-                    ingester = ingester_cls(session, source)
-                    count = await ingester.run()
-
-                _run_status[alias] = {"state": "ok", "count": count}
-                logger.info(f"Done: {count} events from {source_name}.")
-            except Exception as e:
-                _run_status[alias] = {"state": "error", "message": repr(e)}
-                logger.error(f"ERROR in {alias}: {e!r}", exc_info=True)
+            await _run_one_ingester(alias)
 
         # Export step
         logger.info(f"\n{'='*40}\nRunning: export-sheets\n{'='*40}")

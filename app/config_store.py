@@ -65,7 +65,7 @@ def save_config(data: dict, google_creds_json: str | None = None) -> None:
         with open(CONFIG_DIR / "google_credentials.json", "w") as f:
             f.write(google_creds_json)
         env_lines.append("GOOGLE_CREDENTIALS_FILE=/config/google_credentials.json")
-    elif (CONFIG_DIR / "google_credentials.json").exists():
+    elif has_google_credentials():
         env_lines.append("GOOGLE_CREDENTIALS_FILE=/config/google_credentials.json")
 
     with open(CONFIG_DIR / ".env", "w") as f:
