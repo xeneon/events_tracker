@@ -19,6 +19,7 @@ CATEGORIES = [
     {"slug": "tv-shows",        "name": "TV Shows",        "color": "#db2777", "sort_order": 7},
     {"slug": "video-games",     "name": "Video Games",     "color": "#0369a1", "sort_order": 8},
     {"slug": "music-releases",  "name": "Music Releases",  "color": "#0891b2", "sort_order": 9},
+    {"slug": "elections",       "name": "Elections",       "color": "#1d4ed8", "sort_order": 10},
 ]
 
 DATA_SOURCES = [
@@ -48,6 +49,13 @@ DATA_SOURCES = [
         "source_type": "scraper",
         "base_url": "https://en.wikipedia.org",
         "api_key_env_var": "LASTFM_API_KEY",
+        "is_active": True,
+    },
+    {
+        "name": "Ballotpedia",
+        "source_type": "scraper",
+        "base_url": "https://ballotpedia.org",
+        "api_key_env_var": None,
         "is_active": True,
     },
 ]
