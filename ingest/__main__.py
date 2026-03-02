@@ -23,6 +23,7 @@ from .models import DataSource
 from .igdb import IGDBIngester
 from .trakt import TraktIngester
 from .wikipedia_albums import WikipediaAlbumsIngester
+from .ballotpedia import BallotpediaIngester
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ INGESTERS: dict[str, type[BaseIngester]] = {
     "IGDB": IGDBIngester,
     "Trakt": TraktIngester,
     "Wikipedia Albums": WikipediaAlbumsIngester,
+    "Ballotpedia": BallotpediaIngester,
 }
 
 SOURCE_ALIASES: dict[str, str] = {
@@ -38,6 +40,7 @@ SOURCE_ALIASES: dict[str, str] = {
     "igdb": "IGDB",
     "trakt": "Trakt",
     "wikipedia-albums": "Wikipedia Albums",
+    "ballotpedia": "Ballotpedia",
 }
 
 
