@@ -3,7 +3,8 @@
 import asyncio
 import logging
 import uuid
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -19,6 +20,25 @@ CATEGORY_SLUGS = {
 }
 
 class TraktIngester(BaseIngester):
+    _DEFAULT_TZ = ZoneInfo("America/New_York")
+
+    def _local_date_str(self, dt_str: str, tz_name: str | None = None) -> str:
+        """Convert a UTC datetime string to a local date string.
+
+        If dt_str is already a plain date (YYYY-MM-DD), return it unchanged.
+        Otherwise parse as UTC and convert to tz_name (or America/New_York).
+        """
+        if not dt_str or len(dt_str) <= 10:
+            return dt_str[:10] if dt_str else dt_str
+        try:
+            dt_utc = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+            if dt_utc.tzinfo is None:
+                dt_utc = dt_utc.replace(tzinfo=timezone.utc)
+            tz = ZoneInfo(tz_name) if tz_name else self._DEFAULT_TZ
+            return dt_utc.astimezone(tz).date().isoformat()
+        except Exception:
+            return dt_str[:10]
+
     async def fetch_events(self) -> list[dict]:
         client_id = settings.TRAKT_CLIENT_ID
         if not client_id:
@@ -162,16 +182,18 @@ class TraktIngester(BaseIngester):
         # Get release date (US theatrical date takes priority for movies)
         if item_type == "movie":
             release_date_str = raw.get("_us_release_date") or content.get("released")
+            tz_name = None
         else:
             release_date_str = content.get("first_aired")
+            tz_name = content.get("airs", {}).get("timezone")
 
         if not release_date_str:
             # Skip items without a release date
             return None
 
-        # Parse date (format: "2026-12-18" or "2026-03-06T00:00:00.000Z")
+        # Parse date, converting UTC timestamps to local time (defaults to America/New_York)
         try:
-            date_str = release_date_str[:10]
+            date_str = self._local_date_str(release_date_str, tz_name)
             release_date = date.fromisoformat(date_str)
         except (ValueError, TypeError):
             logger.warning(f"Could not parse date: {release_date_str}")
@@ -255,13 +277,24 @@ class TraktIngester(BaseIngester):
         if not show:
             return None
 
-        # Date comes from top-level first_aired, not show.first_aired
+        # Date comes from top-level first_aired, not show.first_aired.
+        # Trakt's airs metadata (day/time/timezone) is systematically wrong for
+        # Apple TV+ shows — always one day behind the actual release day. For
+        # these shows, the UTC date portion of first_aired is correct. For other
+        # networks (Disney+, HBO, cable, etc.), timezone conversion is needed
+        # because first_aired encodes the US evening air time which falls on the
+        # next UTC day.
         release_date_str = raw.get("first_aired")
         if not release_date_str:
             return None
 
         try:
-            date_str = release_date_str[:10]
+            network = (show.get("network") or "").strip()
+            if network == "Apple TV+":
+                date_str = release_date_str[:10]
+            else:
+                tz_name = show.get("airs", {}).get("timezone")
+                date_str = self._local_date_str(release_date_str, tz_name)
             date.fromisoformat(date_str)
         except (ValueError, TypeError):
             logger.warning(f"Could not parse premiere date: {release_date_str}")
