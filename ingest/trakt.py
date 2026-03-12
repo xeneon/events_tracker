@@ -191,9 +191,15 @@ class TraktIngester(BaseIngester):
             # Skip items without a release date
             return None
 
-        # Parse date, converting UTC timestamps to local time (defaults to America/New_York)
+        # Parse date — Apple TV+ shows use UTC date (Trakt's airs metadata is
+        # systematically one day behind for Apple TV+). All others use timezone
+        # conversion since first_aired encodes the US evening air time.
         try:
-            date_str = self._local_date_str(release_date_str, tz_name)
+            network = (content.get("network") or "").strip()
+            if item_type != "movie" and network == "Apple TV+":
+                date_str = release_date_str[:10]
+            else:
+                date_str = self._local_date_str(release_date_str, tz_name)
             release_date = date.fromisoformat(date_str)
         except (ValueError, TypeError):
             logger.warning(f"Could not parse date: {release_date_str}")
